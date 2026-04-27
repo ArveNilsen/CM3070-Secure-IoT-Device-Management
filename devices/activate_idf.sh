@@ -1,0 +1,1 @@
+source "/Users/arvenilsen/.espressif/tools/activate_idf_v6.0.sh"

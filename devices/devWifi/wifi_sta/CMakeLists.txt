@@ -1,5 +1,5 @@
 set(srcs)
-set(include_dirs "include)
+set(include_dirs "include")
 
 if(CONFIG_WIFI_STA_CONNECT)
     list(APPEND srcs

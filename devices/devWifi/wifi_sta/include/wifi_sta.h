@@ -1,8 +1,3 @@
-#ifndef AN_WIFI_STA_H
-#define AN_WIFI_STA_H
-
-#include "esp_err.h"
-
 /*
  * SPDX-FileCopyrightText: 2025 Shawn Hymel
  * SPDX-License-Identifier: Apache-2.0
@@ -21,6 +16,15 @@
  * It will end up as an adaption as I make changes where needed. 
  * I will mark the sections that are my own code.
  */
+
+#ifndef AN_WIFI_STA_H
+#define AN_WIFI_STA_H
+
+#include "esp_err.h"
+
+#define WIFI_STA_CONNECTED_BIT      BIT0
+#define WIFI_STA_IPV4_OBTAINED_BIT  BIT1
+#define WIFI_STA_IPV6_OBTAINED_BIT  BIT2
 
 /*
  * Initialise Wi-Fi in station (STA) mode.

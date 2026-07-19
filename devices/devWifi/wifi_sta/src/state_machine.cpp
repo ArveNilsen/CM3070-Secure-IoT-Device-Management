@@ -1,4 +1,6 @@
-#include "wifi_station/statemachine.hpp"
+#include <wifi_station/state_machine.hpp>
+
+#include <cassert>
 
 namespace wifi_station {
 
@@ -27,7 +29,7 @@ bool WifiStationStateMachine::netifInit()
     if (phase_ != Phase::NotInit) 
         return false;
 
-    if (!driver_.netofInit())
+    if (!driver_.netifInit())
         return false;
 
     phase_ = Phase::NetifInit;
@@ -51,12 +53,12 @@ bool WifiStationStateMachine::configure(const StaConfig& config)
     if (phase_ != Phase::WifiInit && phase_ != Phase::Stopped)
         return false;
 
-    if (!diver.setStaConfig(config))
+    if (!driver_.setStaConfig(config))
         return false;
 
     configValid_ = true;
-    phase_ Phase::Configured;
-    return false;
+    phase_ = Phase::Configured;
+    return true;
 }
 
 bool WifiStationStateMachine::start()
@@ -64,7 +66,7 @@ bool WifiStationStateMachine::start()
     if (phase_ != Phase::Configured || !configValid_)
         return false;
 
-    if (!driver.start())
+    if (!driver_.start())
         return false;
 
     phase_ = Phase::Started;
@@ -100,7 +102,7 @@ bool WifiStationStateMachine::stop()
             return false;
     }
 
-    if (!driver_stop())
+    if (!driver_.stop())
         return false;
 
     ip_.reset();
@@ -141,7 +143,7 @@ void WifiStationStateMachine::onWifiConnected()
         return; // ignore Connecting state
 
     retryCount_ = 0;
-    phase_ Phase::Connected;
+    phase_ = Phase::Connected;
 }
 
 void WifiStationStateMachine::onWifiDisconnected()

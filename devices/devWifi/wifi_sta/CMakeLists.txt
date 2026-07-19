@@ -1,11 +1,8 @@
-set(srcs)
-set(include_dirs "include")
+cmake_minimum_required(VERSION 4.0.2)
+project(wifi_station CXX)
 
-if(CONFIG_WIFI_STA_CONNECT)
-    list(APPEND srcs
-        "wifi_sta.c")
-endif()
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-idf_component_register(SRCS "${srcs}"
-    INCLUDE_DIRS "${include_dirs}"
-    PRIV_REQUIRES esp_wifi esp_netif)
+add_subdirectory(src)
+add_subdirectory(test)

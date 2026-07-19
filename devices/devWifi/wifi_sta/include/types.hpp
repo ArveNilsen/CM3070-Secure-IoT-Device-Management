@@ -29,10 +29,12 @@ struct StaConfig {
     std::string password;
 };
 
+const char* toString(Phase phase) noexcept;
+
 /**
  * The WiFi Driver interface
  */
-class IWifiDriver final {
+class IWifiDriver {
 public:
     virtual ~IWifiDriver() = default;
 

@@ -1,0 +1,13 @@
+idf_component_register(
+    SRCS
+        "../src/state_machine.cpp"
+        "src/esp32_wifi_driver.cpp"
+    INCLUDE_DIRS
+        "../include"
+        "include"
+    REQUIRES
+        esp_wifi
+        esp_netif
+        esp_event
+        nvs_flash
+)

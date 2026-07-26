@@ -1,8 +1,13 @@
 #pragma once
 
+// Standard library includes
 #include <string>
 #include <span>
 #include <expected>
+#include <vector>
+
+// ESP-IDF includes
+#include "nvs.h"
 
 namespace dev {
 
@@ -12,6 +17,17 @@ enum class ConfigError {
     NVSFailure,
     NotEnrolled
 };
+
+constexpr esp_err_t to_esp_err(ConfigError e) noexcept 
+{
+    switch (e) {
+        case ConfigError::NotFound:     return ESP_ERR_NOT_FOUND;
+        case ConfigError::TypeMismatch: return ESP_ERR_INVALID_ARG;
+        case ConfigError::NVSFailure:   return ESP_FAIL;
+        case ConfigError::NotEnrolled:  return ESP_ERR_INVALID_STATE;
+    }
+    return ESP_FAIL; // unreachable
+}
 
 class DeviceConfig {
 public:
@@ -28,8 +44,8 @@ public:
 
     // Network
     result_type wifi_ssid() const;
-    result_type wifi_password const;
-    result_type gateway_host const;
+    result_type wifi_password() const;
+    result_type gateway_host() const;
 
     // Identity
     result_type device_id() const;
@@ -44,7 +60,7 @@ public:
     std::expected<std::vector<uint8_t>, ConfigError> manifest() const;
     std::expected<void, ConfigError>
         store_manifest(std::span<const uint8_t> manifest,
-                       std::span<const uint_8t> signature);
+                       std::span<const uint8_t> signature);
 
     // Firmware hash, written at provisioning only
     std::expected<std::vector<uint8_t>, ConfigError> firmware_hash() const;

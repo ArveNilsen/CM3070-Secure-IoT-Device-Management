@@ -1,8 +1,13 @@
 #pragma once
 
+// Standard library imcludes
 #include <span>
 #include <array>
 #include <expected>
+#include <cstdint>
+
+// ESP-IDF includes
+#include "esp_err.h"
 
 namespace dev {
 
@@ -13,6 +18,18 @@ enum class IdentityError {
     InvalidSlot,
     StubMode // chip is absent
 };
+
+constexpr esp_err_t to_esp_err(IdentityError e) noexcept 
+{
+    switch (e) {
+        case IdentityError::ChipNotSigned:  return ESP_ERR_INVALID_STATE;
+        case IdentityError::SigningFailed:  return ESP_ERR_INVALID_ARG;
+        case IdentityError::SlotLocked:     return ESP_ERR_NOT_ALLOWED;
+        case IdentityError::InvalidSlot:    return ESP_ERR_NOT_SUPPORTED;
+        case IdentityError::StubMode:       return ESP_ERR_INVALID_VERSION;
+    }
+    return ESP_FAIL; // unreachable
+}
 
 // Fixed sizes for the ATEC608A ECDSA P-256
 constexpr size_t PUBLIC_KEY_SIZE = 64;
@@ -35,7 +52,7 @@ public:
 
     // Sign a digest
     std::expected<Signature, IdentityError>
-        sign(uint8_t slot, std::span<const uint8_t> digest) const
+        sign(uint8_t slot, std::span<const uint8_t> digest) const;
 
     // Read firmware hash from locked data slot
     std::expected<Digest, IdentityError>

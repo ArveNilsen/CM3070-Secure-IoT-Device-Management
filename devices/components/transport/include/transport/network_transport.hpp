@@ -1,8 +1,13 @@
 #pragma once
 
+// Standard library includes
 #include <functional>
 #include <span>
 #include <string_view>
+
+// ESP-IDF includes
+#include "mqtt_client.h"
+
 
 namespace dev {
 
@@ -48,7 +53,7 @@ public:
      * @brief Check connected status.
      * @return bool
      */
-    bool is_connected const ();
+    bool is_connected() const;
 
     result_type publish(std::string_view topic,
                 std::span<const uint8_t> payload,
@@ -60,5 +65,6 @@ public:
 private:
     DeviceConfig& config_;
     esp_mqtt_client_handle_t mqtt_client_ = nullptr;
+};
 
 } // namespace dev

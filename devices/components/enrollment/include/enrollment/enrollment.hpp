@@ -29,7 +29,7 @@ public:
 
     // Execute full enrollment protocol.
     // Blocks until enrolled, failed, or timed out.
-    std::expected<EnrollmentResult, EnrollmentError> enroll;
+    std::expected<EnrollmentResult, EnrollmentError> enroll();
 
     // Check if device is already enrolled
     bool is_enrolled() const;

@@ -14,36 +14,40 @@ enum class ConfigError {
 };
 
 class DeviceConfig {
+public:
+
+    /** The result type of the class.
+     * void or error.
+     */
+    using result_type = std::expected<std::string, ConfigError>;
+
     static DeviceConfig& instance();
 
     // Lifecycle
     std::expected<void, ConfigError> init();
 
     // Network
-    std::expected<std::string, ConfigError> wifi_ssid() const;
-    std::expected<std::string, ConfigError> wifi_password const;
-    std::expected<std::string, ConfigError> gateway_host const;
+    result_type wifi_ssid() const;
+    result_type wifi_password const;
+    result_type gateway_host const;
 
     // Identity
-    std::expected<std::string, ConfigError> device_id() const;
-    std::expected<std::string, ConfigError> public_key_id() const;
+    result_type device_id() const;
+    result_type public_key_id() const;
     std::string device_class() const; // from Kconfig, not NVS
 
     // Enrollment state
     bool is_enrolled() const;
-    std::expected<void, ConfigError>
-        set_enrolled(bool enrolled);
+    std::expected<void, ConfigError> set_enrolled(bool enrolled);
 
     // Manifest, written by enrollment component only
-    std::expected<std::vector<uint8_t>, ConfigError>
-        manifest() const;
+    std::expected<std::vector<uint8_t>, ConfigError> manifest() const;
     std::expected<void, ConfigError>
         store_manifest(std::span<const uint8_t> manifest,
                        std::span<const uint_8t> signature);
 
     // Firmware hash, written at provisioning only
-    std::expected<std::vector<uint8_t>, ConfigError>
-        firmware_hash() const;
+    std::expected<std::vector<uint8_t>, ConfigError> firmware_hash() const;
 
 private:
     DeviceConfig() = default;

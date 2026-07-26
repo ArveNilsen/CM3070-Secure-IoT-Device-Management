@@ -23,21 +23,28 @@ enum class EnforcementError {
 };
 
 class CapabilityEnforcer {
+public:
+
+    /**
+     * @brief The result type of the class.
+     * void or error enum
+     */
+    using result_type = std::expected<void, EnforcementError>;
+
     explicit CapabilityEnforcer(DeviceConfig& config);
 
     /**
      * @brief Check if capability is currently permitted.
      * Called before every outbound action.
      */
-    std::expected<void, EnforcementError> check(Capability cap) const;
+    result_type check(Capability cap) const;
 
     /**
      * @brief Apply restriction received from gateway, 
      * reduces active set below ceiling.
      * Cannot exceed enrolled manifest.
      */
-    std::expected<void, EnforcementError>
-        apply_restriction(uint32_t permitted_mask);
+    result_type apply_restriction(uint32_t permitted_mask);
 
     /**
      * @brief Apply quarantine. Sets active to empty set.
@@ -48,7 +55,7 @@ class CapabilityEnforcer {
      * @brief Restore active capabilities to full manifest ceiling.
      * Controlled from gateway command.
      */
-    std::expected<void, EnforcementError> restore_to_ceiling();
+    result_type restore_to_ceiling();
 
     /**
      * @brief Current active capability mask
@@ -69,7 +76,7 @@ private:
     /**
      * @brief Load ceiling from stored manifest, called at init
      */
-    std::expected<void, EnforcementError> load_manifest();
+    result_type load_manifest();
 };
 
 } // namespace dev

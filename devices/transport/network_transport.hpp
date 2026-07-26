@@ -19,12 +19,35 @@ using MessageHandler =
 
 class NetworkTransport {
 public:
+    /**
+     * @brief The result type of the class.
+     * void or error
+     */
     using result_type = std::expected<void, TransportError>;
 
-    expicit NetworkTransport(DeviceConfig& config);
+    /**
+     * @brief Constructor.
+     * @param config A reference to the DeviceConfig object.
+     */
+    explicit NetworkTransport(DeviceConfig& config);
 
+    /**
+     * @brief Attempts to connect to the network with the given config
+     * @retval TransportError
+     * @return void
+     */
     result_type connect();
+
+    /**
+     * @brief Attempts to disconnect from the network.
+     * @return void
+     */
     void disconnect();
+
+    /**
+     * @brief Check connected status.
+     * @return bool
+     */
     bool is_connected const ();
 
     result_type publish(std::string_view topic,

@@ -1,5 +1,6 @@
 #pragma once
 
+// Standard library includes
 #include <string_view>
 #include <expected>
 
@@ -21,6 +22,8 @@ enum class EnforcementError {
     DeviceQuarantined,
     DeviceRestricted
 };
+
+class DeviceConfig;
 
 class CapabilityEnforcer {
 public:

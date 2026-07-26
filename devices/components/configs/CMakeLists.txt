@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS ""
+    SRCS "device_config.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES ""
+    REQUIRES nvs_flash
 )

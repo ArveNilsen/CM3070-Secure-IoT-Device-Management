@@ -1,4 +1,4 @@
 idf_component_register(
-    SRCS ""
+    SRCS "command_handler.cpp"
     INCLUDE_DIRS "include"
 )

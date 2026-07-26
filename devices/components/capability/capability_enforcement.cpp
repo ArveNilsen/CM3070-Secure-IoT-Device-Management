@@ -1,5 +1,21 @@
-std::expected<void, EnforcementError>
-CapabilityEnforcer::apply_restriction(uint32_t permitted_mask)
+#include "capability/capability_enforcement.hpp"
+
+#include "esp_log.h"
+
+static const char* TAG = "CAPABILITY_ENFORCER";
+
+using dev::CapabilityEnforcer;
+using result_type = dev::CapabilityEnforcer::result_type;
+
+CapabilityEnforcer::CapabilityEnforcer(DeviceConfig& config) 
+    : config_{config} {}
+
+result_type CapabilityEnforcer::check(Capability cap) const
+{
+    return {};
+}
+
+result_type CapabilityEnforcer::apply_restriction(uint32_t permitted_mask)
 {
     // Invariant ActiveSubset
     const uint32_t bounded = permitted_mask & ceiling_mask_;
@@ -11,5 +27,31 @@ CapabilityEnforcer::apply_restriction(uint32_t permitted_mask)
     }
 
     active_mask_ = bounded;
-    return {}
+    return {};
 }
+
+void CapabilityEnforcer::quarantine()
+{
+    return;
+}
+
+result_type CapabilityEnforcer::restore_to_ceiling()
+{
+    return {};
+}
+
+uint32_t CapabilityEnforcer::active_capabilities() const
+{
+    return 0;
+}
+
+uint32_t CapabilityEnforcer::manifest_capabilities() const
+{
+    return 0;
+}
+
+result_type CapabilityEnforcer::load_manifest()
+{
+    return {};
+}
+

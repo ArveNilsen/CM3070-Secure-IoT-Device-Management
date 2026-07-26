@@ -1,4 +1,4 @@
 idf_component_register(
-    SRCS ""
+    SRCS "capability_enforcement.cpp"
     INCLUDE_DIRS "include"
 )

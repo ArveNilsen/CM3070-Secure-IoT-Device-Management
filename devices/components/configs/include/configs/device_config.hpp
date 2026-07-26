@@ -37,6 +37,19 @@ public:
      */
     using result_type = std::expected<std::string, ConfigError>;
 
+    /**
+     * @breif Copy constructor deleted.
+     */
+    DeviceConfig(const DeviceConfig&)               = delete;
+
+    /**
+     * @breif Copy assignment operator deleted.
+     */
+    DeviceConfig& operator=(const DeviceConfig&)    = delete;
+
+    /**
+     * @brief Get singleton
+     */
     static DeviceConfig& instance();
 
     // Lifecycle

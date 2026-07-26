@@ -2,8 +2,13 @@
 
 #include <expected>
 #include <functional>
+#include <cstdint>
+#include <span>
 
 namespace dev {
+
+class DeviceConfig;
+class HardwareIdentity;
 
 enum class EnrollmentError {
     AlreadyEnrolled,

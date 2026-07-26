@@ -4,6 +4,7 @@
 #include <functional>
 #include <span>
 #include <string_view>
+#include <expected>
 
 // ESP-IDF includes
 #include "mqtt_client.h"
@@ -21,6 +22,7 @@ enum class TransportError {
 using MessageHandler = 
     std::function<void(std::string_view topic, 
                        std::span<const uint8_t> payload)>;
+class DeviceConfig;
 
 class NetworkTransport {
 public:
@@ -56,8 +58,7 @@ public:
     bool is_connected() const;
 
     result_type publish(std::string_view topic,
-                std::span<const uint8_t> payload,
-                int qos = 1);
+                std::span<const uint8_t> payload, int qos = 1);
 
     result_type subscribe(std::string_view topic,
                   MessageHandler handler);

@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS ""
+    SRCS "network_transport.cpp"
     INCLUDE_DIRS "include"
-    REQUIRES ""
+    REQUIRES mqtt
 )

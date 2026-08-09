@@ -14,34 +14,50 @@ HardwareIdentity& HardwareIdentity::instance()
 
 std::expected<void, IdentityError> HardwareIdentity::init()
 {
+    ATCAIfaceCfg cfg = cfg_ateccx08a_i2c_default;
+    ATCA_STATUS status = atcab_init(&cfg);
+    if (status != ATCA_SUCCESS)
+        return std::unexpected(IdentityError::ChipNotFound);
+
+    stub_mode = false;
     return {};
 }
 
 std::expected<PublicKey, IdentityError>
 HardwareIdentity::public_key(uint8_t slot) const
 {
-    return {};
+    PublicKey pub{};
+    ATCA_STATUS status = atcab_get_pubkey(slot, pub.data());
+    if (status != ATCA_SUCCESS)
+        return std::unexpected(IdentityError::InvalidSlot);
+    return pub;
 }
 
 std::expected<Signature, IdentityError>
 HardwareIdentity::sign(uint8_t slot, std::span<const uint8_t> digest) const
 {
-#ifdef CONFIG_IDENTITY_STUB_MODE
-    // Deterministic stub for testing
+    if (digest.size() != DIGEST_SIZE)
+        return std::unexpected(IdentityError::SigningFailed);
+
     Signature sig{};
-    // mbedTLS software ECDSA sign
+    ATCA_STATUS status = atcab_sign(slot, digest.data(), sig.data());
+    
+    if (status != ATCA_SUCCESS)
+        return std::unexpected(IdentityError::SigningFailed);
+
     return sig;
-#else
-    // TODO: Add real impl
-    Signature sig{};
-    return sig;
-#endif
 }
 
 std::expected<Digest, IdentityError>
 HardwareIdentity::firmware_hash(uint8_t slot) const
 {
-    return {};
+    Digest hash{};
+    ATCA_STATUS status = atcab_read_zone(ATCA_ZONE_DATA, slot, 0, 0,
+        hash.data(), DIGEST_SIZE);
+
+    if (status != ATCA_SUCCESS)
+        return std::unexpected(IdentityError::InvalidSlot);
+    return hash;
 }
 
 bool HardwareIdentity::secure_boot_enabled() const

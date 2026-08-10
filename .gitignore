@@ -1,2 +1,4 @@
 build/
 sdconfig
+__pycache__/
+sdkconfig.old

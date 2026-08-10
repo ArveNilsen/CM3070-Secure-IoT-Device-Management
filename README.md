@@ -8,6 +8,7 @@ gateway - This zero trust components
 dashboard - The user interface
 
 ### High-level workflow
+```
 --------------------------------------------------------------------------------
 | 1. Flash provisioning firmware to ESP32 (separate app) 
 --------------------------------------------------------------------------------
@@ -39,6 +40,7 @@ dashboard - The user interface
 |5. Flash main application firmware
 |   -> device is now deployable
 --------------------------------------------------------------------------------
+```
 
 ### Device manifest
 Stored under `provisioning/devices/*.json`.

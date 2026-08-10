@@ -1,0 +1,2 @@
+# sdkconfig - disable stub mode
+# CONFIG_IDENTITY_STUB_MODE is not set

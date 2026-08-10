@@ -17,6 +17,14 @@ registry: DeviceRegistry = None
 router      = APIRouter(prefix="/enroll")
 nonce_store = NonceStore()
 
+# SHA-256 of the released firmware per device class
+# TODO: Add the actual hashes
+# TODO: Move to appropriate location
+EXPECTED_FIRMWARE_HASHES: dict[str, str] = {
+    "sensor":   "aabbcc...", 
+    "actuator": "ddeeff...",
+}
+
 # --- Request / Response models ---
 
 class NonceRequest(BaseModel):
@@ -93,7 +101,6 @@ async def submit_attestation(req: AttestationRequest):
         raise HTTPException(status_code=409, detail="Device already enrolled")
 
     #4. Verify attestation signature
-    # TODO: Replace stub with real impl
     payload = {
         "public_key_id": req.public_key_id,
         "nonce":         req.nonce,
@@ -110,6 +117,12 @@ async def submit_attestation(req: AttestationRequest):
             bytes.fromhex(req.signature)):
         raise HTTPException(status_code=401,
                             detail="Attestation verification failed")
+
+    expected = EXPECTED_FIRMWARE_HASHES.get(req.device_class)
+    if req.firmware_hash.lower() != expected.lower():
+        raise HTTPException(
+            status_code=401,
+            detail="Firmware hash mismatch - Possible tampering")
 
     # 5. Verify secure boot
     # TODO: Tighten for production mode

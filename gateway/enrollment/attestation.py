@@ -3,6 +3,22 @@ from __future__ import annotations
 import hashlib
 import os
 
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+from cryptography.exceptions import InvalidSignature
+
+def raw_to_der(raw_sig: bytes) -> bytes:
+    """
+    TODO: Add to report, implementation section. 
+    Embedded use R||S, server uses DER
+
+    Must be applied before calling pub_key.verify()
+    """
+    r = int.from_bytes(raw_sig[:32], byteorder='big')
+    s = int.from_bytes(raw_sig[32:], byteorder='big')
+    return encode_dss_signature(r, s)
+
 # ---
 # Registered stub devices
 # Must match CONFIG values on device side
@@ -35,37 +51,36 @@ def _verify_stub(public_key_id: str, payload: bytes,
     return True
 
 
-# ------------------------------------
+# ---
 # ECDSA verification (P-256)
-# Uncomment when ATECC608A public keys
-# are registered.
-# Requires: pip install cryptography
-# ------------------------------------
+# ---
 
-# from cryptography.hazmat.primitives.asymmetric\
-#     import ec
-# from cryptography.hazmat.primitives\
-#     import hashes, serialization
-# from cryptography.exceptions import InvalidSignature
-#
-# def _verify_ecdsa(public_key_id: str,
-#                   payload: bytes,
-#                   signature: bytes) -> bool:
-#     raw_pub = STUB_DEVICES.get(public_key_id)
-#     if not raw_pub:
-#         return False
-#     try:
-#         pub_key = ec.EllipticCurvePublicKey\
-#             .from_encoded_point(
-#                 ec.SECP256R1(),
-#                 b'\x04' + raw_pub)  # uncompressed
-#         pub_key.verify(
-#             signature,
-#             payload,
-#             ec.ECDSA(hashes.SHA256()))
-#         return True
-#     except InvalidSignature:
-#         return False
+REGISTERED_DEVICES: dict[str, bytes] = {
+    "esp32-001": bytes.fromhex("AABBCCDD..."), # TODO: Add provisioning output.
+}
+
+def _verify_ecdsa(public_key_id: str,
+                  payload: bytes,
+                  signature: bytes) -> bool:
+    raw_pub = REGISTERED_DEVICES.get(public_key_id)
+
+    if not raw_pub:
+        return False
+
+    try:
+        pub_key = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP256R1(), b'\x04' + raw_pub) # uncompressed
+        pub_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
+        return True
+
+    except InvalidSignature as e:
+        print(f"Invalid signature error: {e}")
+        return False
+
+    except Exception as e:
+        print(f"Verification error: {e}")
+        return False
+
 
 def _verify_ecdsa(public_key_id: str, payload: bytes, signature: bytes) -> bool:
     raise NotImplementedError

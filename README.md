@@ -62,3 +62,6 @@ Example:
   "provisioning_tool_version": "0.1.0"  
 }
 ```
+
+### Provisioning workflow
+[See provisioning user guide](provisioning/PROVISIONING.md)

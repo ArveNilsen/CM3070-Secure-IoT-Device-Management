@@ -5,6 +5,9 @@
 #include <cstdint>
 #include <span>
 
+#include "configs/device_config.hpp"
+#include "identity/hardware_identity.hpp"
+
 namespace dev {
 
 class DeviceConfig;

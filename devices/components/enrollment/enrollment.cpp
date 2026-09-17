@@ -1,10 +1,18 @@
 // Project includes
 #include "enrollment/enrollment.hpp"
+#include "enrollment/hex_util.hpp"
 
 // ESP-IDF includes
 #include "esp_http_client.h"
 #include "esp_log.h"
-#include "cJSON.h"
+#include "esp_timer.h"
+
+// Third-party includes
+#include <cJSON.h>
+#include "mbedtls/sha256.h"
+
+// Standard library includes
+#include <string>
 
 static const char* TAG = "enrollment";
 
@@ -80,11 +88,10 @@ EnrollmentService::request_nonce()
         + std::to_string(CONFIG_GATEWAY_PORT)
         + "/enroll/nonce";
 
-    esp_http_client_config_t cfg = {
-        .url        = url.c_str(),
-        .method     = HTTP_METHOD_POST,
-        .timeout_ms = CONFIG_NONCE_TIMEOUT_MS,
-    };
+    esp_http_client_config_t cfg = {};
+    cfg.url        = url.c_str();
+    cfg.method     = HTTP_METHOD_POST;
+    cfg.timeout_ms = CONFIG_NONCE_TIMEOUT_MS;
 
     auto client = esp_http_client_init(&cfg);
     esp_http_client_set_header(client, "Content-Type", "application/json");
@@ -110,7 +117,7 @@ EnrollmentService::request_nonce()
     int content_len = esp_http_client_get_content_length(client);
     std::vector<char> response_buf(content_len + 1, 0);
     esp_http_client_read_response(client, response_buf.data(), content_len);
-    eso_http_client_cleanup(client);
+    esp_http_client_cleanup(client);
 
     // Parse nonce from response
     cJSON* response = cJSON_Parse(response_buf.data());
@@ -157,7 +164,7 @@ Add CBOR as dependency
     cJSON* payload = cJSON_CreateObject();
     cJSON_AddStringToObject(payload, "public_key_id", STUB_PUBLIC_KEY_ID);
     cJSON_AddStringToObject(payload, "nonce", hex_encode(nonce).c_str());
-    cJSON_addNumberToObject(payload, "timestamp", (double)timestamp);
+    cJSON_AddNumberToObject(payload, "timestamp", (double)timestamp);
     cJSON_AddStringToObject(payload, "firmware_hash", STUB_FIRMWARE_HASH);
     cJSON_AddStringToObject(payload, "device_class", 
         config_.device_class().c_str());

@@ -2,3 +2,4 @@ build/
 sdconfig
 __pycache__/
 sdkconfig.old
+managed_components/

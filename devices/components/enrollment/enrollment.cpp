@@ -97,35 +97,51 @@ EnrollmentService::request_nonce()
     esp_http_client_set_header(client, "Content-Type", "application/json");
     esp_http_client_set_post_field(client, body_str, strlen(body_str));
 
-    // Perform request
-    esp_err_t err = esp_http_client_perform(client);
-    free(body_str);
+		ESP_LOGI(TAG, "Nonce request body: %s", body_str);
 
+		esp_err_t err = esp_http_client_open(client, strlen(body_str));
     if (err != ESP_OK) {
         esp_http_client_cleanup(client);
         return std::unexpected(EnrollmentError::NetworkFailure);
     }
 
+		// TODO: Consider checking return value
+		esp_http_client_write(client, body_str, strlen(body_str));
+
+		int content_length = esp_http_client_fetch_headers(client);
     int status = esp_http_client_get_status_code(client);
     if (status != 200) {
+				if (content_length > 0) {
+						std::vector<char> err_buf(content_length + 1, 0);
+						esp_http_client_read_response(client, err_buf.data(), content_length);
+						ESP_LOGE(TAG, "Gateway rejected request: %s", err_buf.data());
+				}
+
         esp_http_client_cleanup(client);
         ESP_LOGE(TAG, "Nonce request failed: HTTP %d", status);
         return std::unexpected(EnrollmentError::GatewayRejected);
     }
 
     // Read response body
-    int content_len = esp_http_client_get_content_length(client);
-    std::vector<char> response_buf(content_len + 1, 0);
-    esp_http_client_read_response(client, response_buf.data(), content_len);
+    std::vector<char> response_buf(content_length + 1, 0);
+    int read_len = esp_http_client_read_response(
+				client, response_buf.data(), content_length);
+
+		esp_http_client_close(client);
     esp_http_client_cleanup(client);
+
+		ESP_LOGI(TAG, "Response body (%d bytes): %s", content_length, response_buf.data());
 
     // Parse nonce from response
     cJSON* response = cJSON_Parse(response_buf.data());
-    if (!response)
+    if (!response) {
+				ESP_LOGE(TAG, "Failed to parse nonce response as JSON");
         return std::unexpected(EnrollmentError::GatewayRejected);
+		}
 
     cJSON* nonce_item = cJSON_GetObjectItem(response, "nonce");
     if (!cJSON_IsString(nonce_item)) {
+				ESP_LOGE(TAG, "Response missing 'nonce' string field");
         cJSON_Delete(response);
         return std::unexpected(EnrollmentError::GatewayRejected);
     }

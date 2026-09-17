@@ -1,0 +1,35 @@
+menu "IoT Device Configuration"
+
+config DEVICE_CLASS
+	string "Device class"
+	default "sensor"
+
+config ATTESTATION_KEY_SLOT
+	int "ATECC608A attestation key slot"
+	default 0
+
+config FIRMWARE_HASH_SLOT
+	int "ATECC608A formware hash data slot"
+	default 8
+
+config GATEWAY_PORT
+	int "Gateway enrollment service port"
+	default 8080
+
+config MQTT_PORT
+	int "MQTT broker port"
+	default 1883
+
+config MAX_RETRY_COUNT
+	int "Maximum enrollment retry count"
+	default 3
+
+config NONCE_TIMEOUT_MS
+	int "Nonce request timeout (ms)"
+	default 5000
+
+config HEARTBEAT_INTERVAL_MS
+	int "Telemetry hearbeat interval (ms)"
+	default 5000
+	
+endmenu

@@ -1,4 +1,5 @@
 #include "identity/hardware_identity.hpp"
+#include "cryptoauthlib.h"
 
 using dev::HardwareIdentity;
 using dev::Signature;
@@ -14,12 +15,30 @@ HardwareIdentity& HardwareIdentity::instance()
 
 std::expected<void, IdentityError> HardwareIdentity::init()
 {
-    ATCAIfaceCfg cfg = cfg_ateccx08a_i2c_default;
-    ATCA_STATUS status = atcab_init(&cfg);
-    if (status != ATCA_SUCCESS)
-        return std::unexpected(IdentityError::ChipNotFound);
+		ATCAIfaceCfg cfg = {};
+		cfg.iface_type = ATCA_I2C_IFACE;
 
-    stub_mode = false;
+		cfg.devtype = ATECC608B;
+
+		cfg.atcai2c.address = 0xC0;
+		cfg.atcai2c.bus = 0;
+		cfg.atcai2c.baud = 100000;
+
+		cfg.wake_delay = 1500;
+		cfg.rx_retries = 20;
+
+    ATCA_STATUS status = atcab_init(&cfg);
+    if (status != ATCA_SUCCESS) {
+        return std::unexpected(IdentityError::ChipNotFound);
+		}
+
+		uint8_t revision[4];
+		status = atcab_info(revision);
+		if (status != ATCA_SUCCESS) {
+        return std::unexpected(IdentityError::ChipNotFound);
+		}
+
+    stub_mode_ = false;
     return {};
 }
 

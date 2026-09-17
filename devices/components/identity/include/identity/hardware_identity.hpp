@@ -13,6 +13,7 @@ namespace dev {
 
 enum class IdentityError {
     ChipNotSigned,
+		ChipNotFound,
     SigningFailed,
     SlotLocked,
     InvalidSlot,
@@ -23,6 +24,7 @@ constexpr esp_err_t to_esp_err(IdentityError e) noexcept
 {
     switch (e) {
         case IdentityError::ChipNotSigned:  return ESP_ERR_INVALID_STATE;
+        case IdentityError::ChipNotFound:   return ESP_ERR_INVALID_STATE;
         case IdentityError::SigningFailed:  return ESP_ERR_INVALID_ARG;
         case IdentityError::SlotLocked:     return ESP_ERR_NOT_ALLOWED;
         case IdentityError::InvalidSlot:    return ESP_ERR_NOT_SUPPORTED;

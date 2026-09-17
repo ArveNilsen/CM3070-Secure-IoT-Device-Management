@@ -159,26 +159,14 @@ EnrollmentService::request_nonce()
 std::expected<std::vector<uint8_t>, EnrollmentError>
 EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
 {
-/*
- * Attestation evidence as serialisable structure.
-AttestationEvidence {
-    public_key_id   : string
-    nonce           : bytes
-    timestamp       : uint64
-    firmware_hash   : bytes[32]
-    device_class    : string
-    secure_boot     : bool
-    signature       : bytes[64]  ← ECDSA over all fields above
-}
-Add CBOR as dependency
-*/
     int64_t timestamp = esp_timer_get_time() / 1000;
 
     // Build the payload that will be signed.
     // Precondition:
     // Field order is canonical, gateway must hash fields in the same order.
     cJSON* payload = cJSON_CreateObject();
-    cJSON_AddStringToObject(payload, "public_key_id", STUB_PUBLIC_KEY_ID);
+    cJSON_AddStringToObject(payload, "public_key_id", 
+				config_.public_key_id().value_or(STUB_PUBLIC_KEY_ID).c_str());
     cJSON_AddStringToObject(payload, "nonce", hex_encode(nonce).c_str());
     cJSON_AddNumberToObject(payload, "timestamp", (double)timestamp);
     cJSON_AddStringToObject(payload, "firmware_hash", STUB_FIRMWARE_HASH);
@@ -190,7 +178,8 @@ Add CBOR as dependency
     // Serialise payload for signing
     char* payload_str = cJSON_PrintUnformatted(payload);
     std::string payload_canonical(payload_str);
-    free(payload_str);
+    cJSON_free(payload_str);
+		cJSON_Delete(payload);
 
     std::array<uint8_t, 32> digest;
     mbedtls_sha256(reinterpret_cast<const uint8_t*>(payload_canonical.data()),
@@ -198,22 +187,19 @@ Add CBOR as dependency
 
     // Sign with stub key TODO: replace with ATECC608A
     auto sig_result = identity_.sign(CONFIG_ATTESTATION_KEY_SLOT, digest);
-
-    if (!sig_result) {
-        cJSON_Delete(payload);
+    if (!sig_result)
         return std::unexpected(EnrollmentError::AttestationFailed);
-    }
     
     // Add signature to payload for transmission
-    cJSON_AddStringToObject(payload, "signature", 
-        hex_encode(*sig_result).c_str());
+		cJSON* envelope = cJSON_CreateObject();
+    cJSON_AddStringToObject(envelope, "payload", payload_canonical.c_str());
+    cJSON_AddStringToObject(envelope, "signature", hex_encode(*sig_result).c_str());
 
-    char *evidence_str = cJSON_PrintUnformatted(payload);
+    char *evidence_str = cJSON_PrintUnformatted(envelope);
+    std::vector<uint8_t> evidence(evidence_str, evidence_str + strlen(evidence_str));
+
+    cJSON_free(evidence_str);
     cJSON_Delete(payload);
-
-    std::vector<uint8_t> evidence(evidence_str, 
-        evidence_str + strlen(evidence_str));
-    free(evidence_str);
 
     return evidence;
 }

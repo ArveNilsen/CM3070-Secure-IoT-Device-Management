@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS "main.cpp"
-    INCLUDE_DIRS ""
+    INCLUDE_DIRS "."
     REQUIRES
         configs
         identity
@@ -8,4 +8,5 @@ idf_component_register(
         capability
         command
         transport
+				wifi_station
 )

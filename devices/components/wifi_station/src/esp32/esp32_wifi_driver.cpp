@@ -1,5 +1,5 @@
 // Project includes
-#include <wifi_station/esp32_wifi_driver.hpp>
+#include <wifi_station/esp32/esp32_wifi_driver.hpp>
 
 // Std lib includes
 #include <cstring>
@@ -148,5 +148,28 @@ esp_err_t registerEventGlue(WifiStationStateMachine& sm)
         &onWifiEvent, &sm);
     return err;
 }
+
+const char* toString(BringupStep step) {
+	if (step == BringupStep::Ok)				return "BringupStep_Ok";
+	if (step == BringupStep::NetifInit) return "BringupStep_NetifInit";
+	if (step == BringupStep::WifiInit)	return "BringupStep_WifiInit";
+	if (step == BringupStep::EventGlue) return "BringupStep_EventGlue";
+	if (step == BringupStep::Configure) return "BringupStep_Configure";
+	if (step == BringupStep::Start)			return "BringupStep_Start";
+	if (step == BringupStep::Connect)		return "BringupStep_Connect";
+	else
+		return "BringupStep_Unknown";
+}
+
+BringupStep bringUpStation(WifiStationStateMachine& sm, const StaConfig& config) {
+	if (!sm.netifInit()) return BringupStep::NetifInit;
+	if (!sm.wifiInit())		return BringupStep::WifiInit;
+	if (registerEventGlue(sm) != ESP_OK) return BringupStep::EventGlue;
+	if (!sm.configure(config))  return BringupStep::Configure;
+	if (!sm.start())			return BringupStep::Start;
+	if (!sm.connect())		return BringupStep::Connect;
+	return BringupStep::Ok;
+}
+
 
 } // namespace wifi_station::esp32

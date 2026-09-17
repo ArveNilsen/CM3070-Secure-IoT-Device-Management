@@ -38,4 +38,35 @@ private:
  */
 esp_err_t registerEventGlue(WifiStationStateMachine& sm);
 
+/**
+ * @brief Enumerates the bring-up steps
+ */
+enum class BringupStep { Ok, NetifInit, WifiInit, EventGlue, Configure, Start, Connect };
+
+const char* toString(BringupStep step) noexcept;
+
+BringupStep bringUpStation(WifiStationStateMachine& sm, const StaConfig& config);
+
+class ConnectivityWaiter {
+public:
+	explicit ConnectivityWaiter(WifiStationStateMachine& sm) {
+		events_ = xEventGroupCreate();
+		sm.onPhaseChanged([this](Phase phase) {
+			if (phase == Phase::GotIp) xEventGroupSetBits(events_, kGotIpBit);
+			else											 xEventGroupClearBits(events_, kGotIpBit);
+		});
+	}
+
+	~ConnectivityWaiter() { vEventGroupDelete(events_); }
+
+	bool waitForGotIp(uint32_t timeoutMs) {
+		EventBits_t bits = xEventGroupWaitBits(events_, kGotIpBit,
+				pdFALSE, pdTRUE, pdMS_TO_TICKS(timeoutMs));
+		return (bits & kGotIpBit) != 0;
+	}
+
+private:
+	static constexpr EventBits_t kGotIpBit = BIT0;
+	EventGroupHandle_t events_;
+};
 } // namespace wifi_station::esp32 

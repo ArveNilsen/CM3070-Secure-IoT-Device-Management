@@ -5,6 +5,7 @@
 // ESP-IDF includes
 #include "esp_log.h"
 #include "esp_err.h"
+#include "nvs_flash.h"
 
 // Project includes
 #include "configs/device_config.hpp"
@@ -13,9 +14,8 @@
 #include "capability/capability_enforcement.hpp"
 #include "transport/network_transport.hpp"
 #include "command/command_handler.hpp"
-
-// TODO: Add to config and remove here
-#define CONFIG_HEARTBEAT_INTERVAL_MS 100
+#include "wifi_station/esp32/esp32_wifi_driver.hpp"
+#include "wifi_station/state_machine.hpp"
 
 // Architectural boundary note:
 // Components use std::expected<T, E> throughout.
@@ -27,7 +27,7 @@
 
 namespace {
 
-const char *TAG = "APP_MAIN";
+const char *kTag = "APP_MAIN";
 
 } // namespace anon
 
@@ -54,13 +54,45 @@ esp_err_t to_esp_err(std::expected<T, E> const& result) noexcept {
 
 } // namespace dev
 
+// Static/global lifetime objects:
+wifi_station::esp32::Esp32WifiDriver a_driver;
+wifi_station::WifiStationStateMachine a_sm(a_driver, /*maxRetries=*/5);
+
 extern "C" void app_main()
 {
     using namespace dev;
 
+    // Wifi config is stored in NVS memory
+    // Flash before use to avoid garbage data
+    // Abort on error
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+        err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+
     // Initialise config and identity
     auto& config    = DeviceConfig::instance();
     ESP_ERROR_CHECK_WITHOUT_ABORT(to_esp_err(config.init()));
+
+    ESP_ERROR_CHECK(err); // abort on error
+
+		// Set up WiFi and connect to network
+		wifi_station::esp32::ConnectivityWaiter waiter(a_sm);
+
+		auto step = wifi_station::esp32::bringUpStation(a_sm, wifi_station::StaConfig{"Bjerkes residens", "3lvisinth3building"});
+		if (step != wifi_station::esp32::BringupStep::Ok) {
+			ESP_LOGE(kTag, "Wi-Fi bring-up failed at: %s", wifi_station::esp32::toString(step));
+			return;
+		}
+
+		if (!waiter.waitForGotIp(20000)) {
+			ESP_LOGE(kTag, "timed out waiting for GOT_IP");
+			return;
+		}
+
+    ESP_LOGI(kTag, "Wi-Fi connected, ip=%s -- attempting gateway GET", a_sm.ip()->c_str());
 
     auto& identity  = HardwareIdentity::instance();
     ESP_ERROR_CHECK_WITHOUT_ABORT(to_esp_err(identity.init()));
@@ -75,7 +107,7 @@ extern "C" void app_main()
         auto result = enrollment.enroll();
 
         if (!result) {
-            ESP_LOGE(TAG, "Enrollment failed, halting");
+            ESP_LOGE(kTag, "Enrollment failed, halting");
             return;
         }
 

@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <functional>
+#include <utility>
 
 #include <wifi_station/types.hpp>
 
@@ -78,6 +80,15 @@ public:
      */
     void onGotIp(const std::string& ip);
 
+		using PhaseChangeCallback = std::function<void(Phase)>;
+
+		/**
+		 *
+		 */
+		void onPhaseChanged(PhaseChangeCallback callback) {
+			onPhaseChanged_ = std::move(callback);
+		}
+
     // --- Introspection ---
     Phase phase() const noexcept { return phase_; }
     std::uint32_t retryCount() const noexcept { return retryCount_; }
@@ -91,5 +102,16 @@ private:
     std::uint32_t retryCount_ = 0;
     bool configValid_ = false;
     std::optional<std::string> ip_;
+
+		PhaseChangeCallback onPhaseChanged_;
+
+		/**
+		 * Single point of phase transitions
+		 */
+		void setPhase(Phase newPhase) {
+			phase_ = newPhase;
+			if (onPhaseChanged_) 
+				onPhaseChanged_(phase_);
+		}
 };
 } // namespace wifi_station

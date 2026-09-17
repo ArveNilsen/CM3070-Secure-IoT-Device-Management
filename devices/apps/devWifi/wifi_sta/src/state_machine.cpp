@@ -32,7 +32,7 @@ bool WifiStationStateMachine::netifInit()
     if (!driver_.netifInit())
         return false;
 
-    phase_ = Phase::NetifInit;
+    phase_ = setPhase(Phase::NetifInit);
     return true;
 }
 
@@ -44,7 +44,7 @@ bool WifiStationStateMachine::wifiInit()
     if (!driver_.wifiInit())
         return false;
 
-    phase_ = Phase::WifiInit;
+    phase_ = setPhase(Phase::WifiInit);
     return true;
 }
 
@@ -57,7 +57,7 @@ bool WifiStationStateMachine::configure(const StaConfig& config)
         return false;
 
     configValid_ = true;
-    phase_ = Phase::Configured;
+    phase_ = setPhase(Phase::Configured);
     return true;
 }
 
@@ -69,7 +69,7 @@ bool WifiStationStateMachine::start()
     if (!driver_.start())
         return false;
 
-    phase_ = Phase::Started;
+    phase_ = setPhase(Phase::Started);
     return true;
 }
 
@@ -85,7 +85,7 @@ bool WifiStationStateMachine::connect()
     if (!driver_.connect())
         return false;
 
-    phase_ = Phase::Connecting;
+    phase_ = setPhase(Phase::Connecting);
     return true;
 }
 
@@ -107,7 +107,7 @@ bool WifiStationStateMachine::stop()
 
     ip_.reset();
     retryCount_ = 0;
-    phase_ = Phase::Stopped;
+    phase_ = setPhase(Phase::Stopped);
     return true;
 }
 
@@ -121,7 +121,7 @@ bool WifiStationStateMachine::deinit()
 
     retryCount_ = 0;
     configValid_ = false;
-    phase_ = Phase::Deinit;
+    phase_ = setPhase(Phase::Deinit);
     return true;
 }
 
@@ -130,7 +130,7 @@ bool WifiStationStateMachine::restart()
     if (phase_ != Phase::Deinit)
         return false;
 
-    phase_ = Phase::NotInit;
+    phase_ = setPhase(Phase::NotInit);
     return true;
 }
 
@@ -143,7 +143,7 @@ void WifiStationStateMachine::onWifiConnected()
         return; // ignore Connecting state
 
     retryCount_ = 0;
-    phase_ = Phase::Connected;
+    phase_ = setPhase(Phase::Connected);
 }
 
 void WifiStationStateMachine::onWifiDisconnected()
@@ -151,12 +151,12 @@ void WifiStationStateMachine::onWifiDisconnected()
     switch (phase_) {
         case Phase::Connecting:
             ++retryCount_;
-            phase_ = Phase::Disconnected;
+            phase_ = setPhase(Phase::Disconnected);
             break;
         case Phase::Connected:
         case Phase::GotIp:
             ip_.reset();
-            phase_ = Phase::Disconnected;
+            phase_ = setPhase(Phase::Disconnected);
             break;
         default:
             break; // Ignore all other states
@@ -167,7 +167,7 @@ void WifiStationStateMachine::onGotIp(const std::string& newIp)
 {
     if (phase_ == Phase::Connected) {
         ip_ = newIp;
-        phase_ = Phase::GotIp;
+        phase_ = setPhase(Phase::GotIp);
     } else if (phase_ == Phase::GotIp && ip_ != newIp) {
         ip_ = newIp; // IPChange
     }

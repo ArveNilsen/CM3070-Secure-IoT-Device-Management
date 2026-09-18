@@ -28,6 +28,7 @@ constexpr esp_err_t to_esp_err(ConfigError e) noexcept
         case ConfigError::TypeMismatch: return ESP_ERR_INVALID_ARG;
         case ConfigError::NVSFailure:   return ESP_FAIL;
         case ConfigError::NotEnrolled:  return ESP_ERR_INVALID_STATE;
+        case ConfigError::NotInitialized:  return ESP_ERR_INVALID_STATE;
     }
     return ESP_FAIL; // unreachable
 }
@@ -67,14 +68,12 @@ public:
     // Lifecycle. Must be called before other methods.
     std::expected<void, ConfigError> init();
 
-    // Network
-    result_type wifi_ssid() const;
-    result_type wifi_password() const;
-    result_type gateway_host() const;
-
-    // Identity
-    result_type device_id() const;
-    result_type public_key_id() const;
+    // Network & identity - ready-only
+    string_result wifi_ssid() const;
+    string_result wifi_password() const;
+    string_result gateway_host() const;
+    string_result device_id() const;
+    string_result public_key_id() const;
     std::string device_class() const; // Kconfig
 
     // Enrollment state
@@ -93,9 +92,6 @@ public:
     std::expected<void, ConfigError>
         store_manifest(std::span<const uint8_t> manifest,
                        std::span<const uint8_t> signature);
-
-    // Firmware hash, written at provisioning only
-    bytes_result firmware_hash() const;
 
 		/**
 		 * @brief Parsed capability ceiling from the store manifest.

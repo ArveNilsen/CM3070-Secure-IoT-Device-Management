@@ -1,76 +1,338 @@
 #include "configs/device_config.hpp"
+#include "esp_log.h"
+#include <cJSON.h>
 
-using dev::DeviceConfig;
-using dev::ConfigError;
-using result_type = dev::DeviceConfig::result_type;
+namespace dev {
 
+namespace {
+
+constexpr const char* TAG = "device_config";
+
+constexpr const char* NS_DEVICE				= "device_cfg";
+constexpr const char* NS_MANIFEST			= "manifest";
+constexpr const char* NS_ATTESTATION	= "attestation";
+
+namespace key {
+constexpr const char* wifi_ssid = "wifi_ssid";
+constexpr const char* wifi_password = "wifi_password";
+constexpr const char* gateway_host = "gateway_host";
+constexpr const char*	device_id = "device_id"; 
+constexpr const char* public_key_id = "public_key_id";
+constexpr const char* enrolled = "enrolled";
+constexpr const char* manifest = "manifest";
+constexpr const char* signature = "signature";
+constexpr const char* firmware_hash = "firmware_hash";
+
+}	// namespace anon::key
+
+} // namespace
+
+// Meyer singleton
 DeviceConfig& DeviceConfig::instance()
 {
-    static DeviceConfig dc;
-    return dc;
+    static DeviceConfig singleton;
+    return singleton;
 }
 
+// ---
+// Lifecycle
+// ---
 std::expected<void, ConfigError> DeviceConfig::init()
 {
+		esp_err_t err = nvs_open(NS_DEVICE, NVS_READWRITE, &device_handle_);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "Failed to open '%s' namespace: %s",
+						NS_DEVICE, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		err = nvs_open(NS_MANIFEST, NVS_READWRITE, &manifest_handle_);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "Failed to open '%s' namespace: %s",
+						NS_DEVICE, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		// Attestation namespace is read-only from this component, but
+		// NVS_READWRITE is needed for nvs_open to succeed even if the namespace 
+		// doesn't exist yet.
+		err = nvs_open(NS_ATTESTATION, NVS_READWRITE, &attestation_handle_);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "Failed to open '%s' namespace: %s",
+						NS_DEVICE, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		initialized_ = true;
     return {};
 }
 
-result_type DeviceConfig::wifi_ssid() const
+std::expected<void, ConfigError> DeviceConfig::ensure_initialized() const
 {
-    return {};
+	if (!initialized_) {
+		ESP_LOGE(TAG, "Accessor called before init() succeded");
+		return std::unexpected(ConfigError::NotInitialized);
+	}
+
+	return {};
 }
 
-result_type DeviceConfig::wifi_password() const
+// ---
+// NVS helpers
+// ---
+
+namespace {
+
+std::expected<std::string, ConfigError>
+get_string(nvs_handle_t handle, const char* key)
 {
-    return {};
+		size_t len = 0;	
+		esp_err_t err = nvs_get_str(handle, key, nullptr, &len);
+		if (err == ESP_ERR_NVS_NOT_FOUND)
+				return std::unexpected(ConfigError::NotFound);
+
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "nvs_get_str size query failed for '%s': %s",
+						key, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);	
+		}
+
+		std::string value(len, '\0');
+		err = nvs_get_str(handle, key, value.data(), &len);
+		if (err != ESP_OK) {
+			ESP_LOGE(TAG, "nvs_get_str fetch failed for '%s': %s",
+						key, esp_err_to_name(err));
+			return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		// NVS reported length includes null terminator.
+		// Remove as it is unneeded in std::string
+		if (!value.empty() && value.back() == '\0')
+				value.pop_back();
+
+		return value;
 }
 
-result_type DeviceConfig::gateway_host() const
+std::expected<void, ConfigError>
+set_string(nvs_handle_t handle, const char* key, const std::string& value)
 {
-    return {};
+		esp_err_t err = nvs_set_str(handle, key, value.c_str());
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "nvs_set_str failed for '%s': %s",
+						key, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		err = nvs_commit(handle);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "nvs_commit failed after setting '%s': %s",
+						key, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		return {};
 }
 
-result_type DeviceConfig::device_id() const
+std::expected<std::vector<uint8_t>, ConfigError>
+get_blob(nvs_handle_t handle, const char* key)
 {
-    return {};
+		size_t len = 0;
+		esp_err_t err = nvs_get_blob(handle, key, nullptr, &len);
+		if (err == ESP_ERR_NVS_NOT_FOUND)
+				return std::unexpected(ConfigError::NotFound);
+
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "nvs_get_blob size query failed for '%s': %s",
+						key, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		std::vector<uint8_t> value(len);
+		err = nvs_get_blob(handle, key, value.data(), &len);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "nvs_get_blob fetch failed for '%s': %s",
+						key, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		return value;
 }
 
-result_type DeviceConfig::public_key_id() const
+std::expected<void, ConfigError>
+set_blob(nvs_handle_t handle, const char* key, std::span<const uint8_t> value)
 {
-    return {};
+		esp_err_t err = nvs_set_blob(handle, key, value.data(), value.size());
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "nvs_set_blob failed for '%s': %s",
+						key, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		err = nvs_commit(handle);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "nvs_commit failed after setting '%s': %s",
+						key, esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		return {};
+}
+
+} // namespace
+
+// ---
+// Network
+// ---
+
+DeviceConfig::string_result DeviceConfig::wifi_ssid() const
+{
+		if (auto ok = ensure_initialized(); !ok)
+			return std::unexpected(ok.error());
+
+		return get_string(device_handle_, key::wifi_ssid);
+}
+
+DeviceConfig::string_result DeviceConfig::wifi_password() const
+{
+		if (auto ok = ensure_initialized(); !ok)
+			return std::unexpected(ok.error());
+
+		return get_string(device_handle_, key::wifi_password);
+}
+
+DeviceConfig::string_result DeviceConfig::gateway_host() const
+{
+		if (auto ok = ensure_initialized(); !ok)
+			return std::unexpected(ok.error());
+
+		return get_string(device_handle_, key::gateway_host);
+}
+
+// ---
+// Identity
+// ---
+
+DeviceConfig::string_result DeviceConfig::device_id() const
+{
+		if (auto ok = ensure_initialized(); !ok)
+			return std::unexpected(ok.error());
+
+		return get_string(device_handle_, key::device_id);
+}
+
+DeviceConfig::string_result DeviceConfig::public_key_id() const
+{
+		if (auto ok = ensure_initialized(); !ok)
+			return std::unexpected(ok.error());
+
+		return get_string(device_handle_, key::public_key_id);
 }
 
 std::string DeviceConfig::device_class() const
 {
-    return "";
+		// Kconfig value
+    return CONFIG_DEVICE_CLASS;
 }
+
+// ---
+// Enrollment state
+// ---
 
 bool DeviceConfig::is_enrolled() const
 {
-    return false;
+		if (auto ok = ensure_initialized(); !ok)
+			return false;
+
+		uint8_t flag = 0;
+		esp_err_t err = nvs_get_u8(device_handle_, key::enrolled, &flag);
+		if (err != ESP_OK)
+				return false; // key not found
+
+		return flag != 0;
 }
 
 std::expected<void, ConfigError> DeviceConfig::set_enrolled(bool enrolled)
 {
-    return {};
+		if (auto ok = ensure_initialized(); !ok)
+				return ok;
+
+		esp_err_t err = nvs_set_u8(device_handle_, key::enrolled,
+				enrolled ? 1 : 0);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "Failed to set enrolled flag: %s",
+						esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		err = nvs_commit(device_handle_);
+		if (err != ESP_OK)
+				return std::unexpected(ConfigError::NVSFailure);
+
+		return {};
 }
 
-std::expected<std::vector<uint8_t>, ConfigError> 
-DeviceConfig::manifest() const
+// ---
+// Manifest
+// ---
+
+DeviceConfig::bytes_result DeviceConfig::manifest() const
 {
-    return {};
+		if (auto ok = ensure_initialized(); !ok)
+				return std::unexpected(ok.error());
+
+		if (!is_enrolled())
+				return std::unexpected(ConfigError::NotEnrolled);
+
+		return get_blob(manifest_handle_, key::manifest);
 }
 
 std::expected<void, ConfigError>
 DeviceConfig::store_manifest(std::span<const uint8_t> manifest,
-                   std::span<const uint8_t> signature)
+														 std::span<const uint8_t> signature)
 {
-    return {};
+		if (auto ok = ensure_initialized(); !ok)
+				return ok;
+
+		// Both writes must succeed. Rollback if not.
+		// TODO: Add limitation to report:
+		// No multi-step transaction-commit support in nvs.
+		if (auto ok = set_blob(manifest_handle_, key::manifest, manifest); !ok)
+				return ok;
+
+		if (auto ok = set_blob(manifest_handle_, key::signature, signature); !ok) {
+				// Attempt rollback
+				nvs_erase_key(manifest_handle_, key::manifest);
+				nvs_commit(manifest_handle_);
+				return ok;
+		}
+
+		return set_enrolled(true);
 }
 
-// Firmware hash, written at provisioning only
-std::expected<std::vector<uint8_t>, ConfigError> 
-DeviceConfig::firmware_hash() const
+std::expected<uint32_t, ConfigError> DeviceConfig::capability_ceiling() const
 {
-    return {};
+		auto raw = manifest();
+		if (!raw)
+				return std::unexpected(raw.error());
+
+		std::string manifest_str(raw->begin(), raw->end());
+		cJSON* parsed = cJSON_ParseWithLength(
+				manifest_str.data(), manifest_str.size());
+		if (!parsed) {
+				ESP_LOGE(TAG, "Stored manifest is not valid JSON");
+				return std::unexpected(ConfigError::TypeMismatch);
+		}
+
+		cJSON* caps = cJSON_GetObjectItem(parsed, "capabilities");
+		if (!cJSON_IsNumber(caps)) {
+				ESP_LOGE(TAG, "Manifest missing numeric 'capabilities' field");
+				cJSON_Delete(parsed);
+				return std::unexpected(ConfigError::TypeMismatch);
+		}
+
+		uint32_t ceiling = static_cast<uint32_t>(caps->valuedouble);
+		cJSON_Delete(parsed);
+		return ceiling;
 }
+
+} // namespace dev

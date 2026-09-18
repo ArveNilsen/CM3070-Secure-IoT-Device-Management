@@ -37,18 +37,7 @@ class NonceResponse(BaseModel):
     timestamp: int
 
 
-class AttestationRequest(BaseModel):
-    public_key_id: str
-    nonce: str # hex-encoded
-    timestamp: int
-    firmware_hash: str
-    device_class: str
-    secure_boot: bool
-    signature: str # hex-encoded
-
-
 class ManifestResponse(BaseModel):
-    capabilities: int # bitmask
     manifest_version: int
     gateway_signature: str # hex-encoded
 
@@ -173,17 +162,17 @@ async def submit_attestation(envelope: AttestationEnvelope):
         "manifest_version": manifest_version,
     }, separators=(',', ':')).encode()
 
-    gateway_sig = sign_manifest(manifest_data)
+    gateway_sig = sign_manifest(manifest_data.encode())
 
     # 8. Store enrollment in registry
-    registry.enroll(public_key_id=payload.public_key_id,
-                    device_class=payload.device_class,
-                    capabilities=int(capabilities),
-                    manifest_version=manifest_version,
-                    firmware_hash=payload.firmware_hash)
+    registry.enroll(
+        public_key_id=payload.public_key_id,
+        device_class=payload.device_class,
+        capabilities=int(capabilities),
+        manifest_version=manifest_version,
+        firmware_hash=payload.firmware_hash)
 
     return ManifestResponse(
-        capabilities=int(capabilities),
         manifest_version=manifest_version,
         gateway_signature=gateway_sig.hex())
 

@@ -20,7 +20,8 @@ enum class EnrollmentError {
     AttestationFailed,
     ManifestInvalid,
     SignatureInvalid,
-    GatewayRejected
+    GatewayRejected,
+		NotConfigured
 };
 
 struct EnrollmentResult {

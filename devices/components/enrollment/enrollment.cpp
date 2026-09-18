@@ -72,21 +72,33 @@ bool EnrollmentService::is_enrolled() const
 std::expected<std::vector<uint8_t>, EnrollmentError> 
 EnrollmentService::request_nonce()
 {
+		auto pkid = config_.public_key_id();
+		if (!pkid) {
+				ESP_LOGE(TAG, "No public_key_id in config");
+				return std::unexpected(EnrollmentError::AttestationFailed);
+		}
+
+		auto host = config_.gateway_host();
+		if (!host) {
+				ESP_LOGE(TAG, "No gateway host in config");
+				return std::unexpected(EnrollmentError::NotConfigured);
+		}
+
     // Build request body
     cJSON* body = cJSON_CreateObject();
-    cJSON_AddStringToObject(body, "public_key_id", STUB_PUBLIC_KEY_ID);
+    cJSON_AddStringToObject(body, "public_key_id", pkid->c_str());
     cJSON_AddStringToObject(body, "device_class", 
         config_.device_class().c_str());
 
     char* body_str = cJSON_PrintUnformatted(body);
+		std::string body_owned(body_str);
+		cJSON_free(body_str);
     cJSON_Delete(body);
 
     // Configure HTTP client
-    std::string url = "http://"
-        + config_.gateway_host().value_or("192.168.1.1")
-        + ":"
-        + std::to_string(CONFIG_GATEWAY_PORT)
-        + "/enroll/nonce";
+    std::string url = "http://" + *host + ":"
+        + std::to_string(CONFIG_GATEWAY_PORT) + "/enroll/nonce";
+		ESP_LOGI(TAG, "Requesting nonce: %s", url.c_str());
 
     esp_http_client_config_t cfg = {};
     cfg.url        = url.c_str();
@@ -95,33 +107,24 @@ EnrollmentService::request_nonce()
 
     auto client = esp_http_client_init(&cfg);
     esp_http_client_set_header(client, "Content-Type", "application/json");
-    esp_http_client_set_post_field(client, body_str, strlen(body_str));
-
-		ESP_LOGI(TAG, "Nonce request body: %s", body_str);
-
-		esp_err_t err = esp_http_client_open(client, strlen(body_str));
+		
+    //esp_http_client_set_post_field(client, body_str, strlen(body_str));
+		esp_err_t err = esp_http_client_open(client, body_owned.size());
     if (err != ESP_OK) {
         esp_http_client_cleanup(client);
         return std::unexpected(EnrollmentError::NetworkFailure);
     }
 
-		// TODO: Consider checking return value
-		esp_http_client_write(client, body_str, strlen(body_str));
+		int written = esp_http_client_write(client, body_owned.data(), body_owned.size());
+		if (written < 0) {
+				esp_http_client_close(client);
+				esp_http_client_cleanup(client);
+				return std::unexpected(EnrollmentError::NetworkFailure);
+		}
 
 		int content_length = esp_http_client_fetch_headers(client);
     int status = esp_http_client_get_status_code(client);
-    if (status != 200) {
-				if (content_length > 0) {
-						std::vector<char> err_buf(content_length + 1, 0);
-						esp_http_client_read_response(client, err_buf.data(), content_length);
-						ESP_LOGE(TAG, "Gateway rejected request: %s", err_buf.data());
-				}
-
-        esp_http_client_cleanup(client);
-        ESP_LOGE(TAG, "Nonce request failed: HTTP %d", status);
-        return std::unexpected(EnrollmentError::GatewayRejected);
-    }
-
+		
     // Read response body
     std::vector<char> response_buf(content_length + 1, 0);
     int read_len = esp_http_client_read_response(
@@ -130,12 +133,17 @@ EnrollmentService::request_nonce()
 		esp_http_client_close(client);
     esp_http_client_cleanup(client);
 
-		ESP_LOGI(TAG, "Response body (%d bytes): %s", content_length, response_buf.data());
+    if (status != 200) {
+        ESP_LOGE(TAG, "Nonce request failed: HTTP %d, body: %s", 
+						status, response_buf.data());
+        return std::unexpected(EnrollmentError::GatewayRejected);
+    }
+
+		ESP_LOGI(TAG, "Nonce response (%d bytes): %s", content_length, response_buf.data());
 
     // Parse nonce from response
     cJSON* response = cJSON_Parse(response_buf.data());
     if (!response) {
-				ESP_LOGE(TAG, "Failed to parse nonce response as JSON");
         return std::unexpected(EnrollmentError::GatewayRejected);
 		}
 
@@ -146,30 +154,38 @@ EnrollmentService::request_nonce()
         return std::unexpected(EnrollmentError::GatewayRejected);
     }
 
-    // Decode hex nonce to bytes
-    std::string nonce_hex = nonce_item->valuestring;
-    cJSON_Delete(response);
+    std::vector<uint8_t> nonce_bytes = hex_decode(nonce_item->valuestring);
+    ESP_LOGI(TAG, "Nonce received: %s", nonce_item->valuestring));
 
-    std::vector<uint8_t> nonce_bytes = hex_decode(nonce_hex);
-
-    ESP_LOGI(TAG, "Nonce received: %s", nonce_hex.c_str());
+		cJSON_Delete(response);
     return nonce_bytes;
 }
 
 std::expected<std::vector<uint8_t>, EnrollmentError>
 EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
 {
+		auto pkid = config_.public_key_id();
+		if (!pkid) {
+				ESP_LOGE(TAG, "No public_key_id in config");
+				return std::unexpected(EnrollmentError::AttestationFailed);
+		}
+		
+		auto fw_hash = identity_.firmware_hash(CONFIG_FIRMWARE_HASH_SLOT);
+		if (!fw_hash) {
+				ESP_LOGE(TAG, "Failed to read firmware hash from hardware identity");
+				return std::unexpected(EnrollmentError::AttestationFailed);
+		}
+
     int64_t timestamp = esp_timer_get_time() / 1000;
 
     // Build the payload that will be signed.
     // Precondition:
     // Field order is canonical, gateway must hash fields in the same order.
     cJSON* payload = cJSON_CreateObject();
-    cJSON_AddStringToObject(payload, "public_key_id", 
-				config_.public_key_id().value_or(STUB_PUBLIC_KEY_ID).c_str());
+    cJSON_AddStringToObject(payload, "public_key_id", pkid->c_str());
     cJSON_AddStringToObject(payload, "nonce", hex_encode(nonce).c_str());
     cJSON_AddNumberToObject(payload, "timestamp", (double)timestamp);
-    cJSON_AddStringToObject(payload, "firmware_hash", STUB_FIRMWARE_HASH);
+    cJSON_AddStringToObject(payload, "firmware_hash", hex_encode(*fw_hash).c_str());
     cJSON_AddStringToObject(payload, "device_class", 
         config_.device_class().c_str());
     cJSON_AddBoolToObject(payload, "secure_boot", 
@@ -181,14 +197,17 @@ EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
     cJSON_free(payload_str);
 		cJSON_Delete(payload);
 
+		ESP_LOGI(TAG, "Attestation payload: %s", payload_canonical.c_str());
+
     std::array<uint8_t, 32> digest;
     mbedtls_sha256(reinterpret_cast<const uint8_t*>(payload_canonical.data()),
         payload_canonical.size(), digest.data(), 0/* 0 = SHA-256 */);
 
-    // Sign with stub key TODO: replace with ATECC608A
     auto sig_result = identity_.sign(CONFIG_ATTESTATION_KEY_SLOT, digest);
-    if (!sig_result)
+    if (!sig_result) {
+				ESP_LOGE(TAG, "Signing failed");
         return std::unexpected(EnrollmentError::AttestationFailed);
+		}
     
     // Add signature to payload for transmission
 		cJSON* envelope = cJSON_CreateObject();
@@ -208,13 +227,109 @@ EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
 std::expected<EnrollmentResult, EnrollmentError>
 EnrollmentService::submit_attestation(std::span<const uint8_t> evidence)
 {
-    return {};
+		std::string url = "http://"
+			+ config_.gateway_host().value_or("0.0.0.0")
+			+ ":" + std::to_string(CONFIG_GATEWAY_PORT)
+			+ "/enroll/attest";
+
+		esp_http_client_config_t cfg = {};
+		cfg.url					= url.c_str();
+		cfg.method			= HTTP_METHOD_POST;
+		cfg.timeout_ms  = CONFIG_NONCE_TIMEOUT_MS;
+
+		auto client = esp_http_client_init(&cfg);
+		esp_http_client_set_header(client, "Content-Type", "application/json");
+
+		esp_err_t err = esp_http_client_open(client, evidence.size());
+		if (err != ESP_OK) {
+			esp_http_client_cleanup(client);
+			return std::unexpected(EnrollmentError::NetworkFailure);
+		}
+
+		int written = esp_http_client_write(
+				client, reinterpret_cast<const char*>(evidence.data()), evidence.size());
+		if (written < 0) {
+			esp_http_client_close(client);
+			esp_http_client_cleanup(client);
+			return std::unexpected(EnrollmentError::NetworkFailure);
+		}
+
+		int content_length = esp_http_client_fetch_headers(client);
+		int status = esp_http_client_get_status_code(client);
+
+		std::vector<char> response_buf(content_length + 1, 0);
+		int read_len = esp_http_client_read_response(
+				client, response_buf.data(), content_length);
+
+		esp_http_client_close(client);
+		esp_http_client_cleanup(client);
+
+		if (status != 200) {
+			ESP_LOGE(TAG, "Attestation rejected: HTTP %d, body: %s",
+					status, response_buf.data());
+			return std::unexpected(EnrollmentError::GatewayRejected);
+		}
+
+		ESP_LOGI(TAG, "Manifest response (%d bytes): %s",
+			read_len, response_buf.data());
+
+		cJSON* response = cJSON_Parse(response_buf.data());
+		if (!response) {
+			ESP_LOGE(TAG, "Failed to parse manifest response");
+			return std::unexpected(EnrollmentError::ManifestInvalid);
+		}
+
+		cJSON* manifest_item = cJSON_GetObjectItem(response, "manifest");
+		cJSON* sig_item = cJSON_GetObjectItem(response, "gateway_signature");
+
+		if (!cJSON_IsString(manifest_item) || !cJSON_IsString(sig_item)) {
+			ESP_LOGE(TAG, "Manifest response missing required fields");
+			cJSON_Delete(response);
+			return std::unexpected(EnrollmentError::ManifestInvalid);
+		}
+
+		EnrollmentResult result;
+		std::string manifest_str = manifest_item->valuestring;
+		result.manifest.assign(manifest_str.begin(), manifest_str.end());
+		result.gateway_signature = hex_decode(sig_item->valuestring);
+
+		cJSON_Delete(response);
+    return result;
 }
 
 // Phase 4: verify gateway signature over manifest
 std::expected<void, EnrollmentError>
 EnrollmentService::verify_manifest(const EnrollmentResult& result)
 {
-    return {};
+		// TODO: Currently a stub impl. Fix when gateway-side signing is
+		// implemented.
+
+		cJSON* manifest = cJSON_Parse(
+				reinterpret_cast<const char*>(result.manifest.data()));
+		if (!manifest) {
+				ESP_LOGE(TAG, "Manifest is not valid JSON");
+				return std::unexpected(EnrollmentError::ManifestInvalid);	
+		}
+		
+		cJSON* pkid = cJSON_GetObjectItem(manifest, "public_key_id");	
+		cJSON* caps = cJSON_GetObjectItem(manifest, "capabilities");	
+		cJSON* ver  = cJSON_GetObjectItem(manifest, "manifest_version");	
+
+		if (!cJSON_IsString(pkid) || !cJSON_IsNumber(caps) || !cJSON_IsNumber(ver)) {
+				ESP_LOGE(TAG, "Manifest missing required fields");
+				cJSON_Delete(manifest);
+				return std::unexpected(EnrollmentError::ManifestInvalid);
+		}
+
+		if (result.gateway_signature.empty()) {
+				ESP_LOGE(TAG, "Manifest carries no signature");
+				cJSON_Delete(manifest);
+				return std::unexpected(EnrollmentError::SignatureInvalid);
+		}
+
+		ESP_LOGW(TAG, "Gateway signature present. STUB impl");
+
+		cJSON_Delete(manifest);
+		return {};
 }
 

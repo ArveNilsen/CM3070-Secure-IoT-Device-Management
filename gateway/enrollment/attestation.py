@@ -56,7 +56,7 @@ def _verify_stub(public_key_id: str, payload: bytes,
 # ---
 
 REGISTERED_DEVICES: dict[str, bytes] = {
-    "esp32-001": bytes.fromhex("AABBCCDD..."), # TODO: Add provisioning output.
+    "esp32-001": bytes.fromhex("60"), # TODO: Add provisioning output.
 }
 
 def _verify_ecdsa(public_key_id: str,

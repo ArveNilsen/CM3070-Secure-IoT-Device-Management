@@ -39,24 +39,25 @@ DeviceConfig& DeviceConfig::instance()
 // ---
 std::expected<void, ConfigError> DeviceConfig::init()
 {
-		esp_err_t err = nvs_open(NS_DEVICE, NVS_READWRITE, &device_handle_);
+		esp_err_t err = nvs_open_from_partition(
+				"nvs_id", NS_DEVICE, NVS_READONLY, &device_handle_);
 		if (err != ESP_OK) {
 				ESP_LOGE(TAG, "Failed to open '%s' namespace: %s",
 						NS_DEVICE, esp_err_to_name(err));
 				return std::unexpected(ConfigError::NVSFailure);
 		}
 
-		err = nvs_open(NS_MANIFEST, NVS_READWRITE, &manifest_handle_);
+		err = nvs_open_from_partition(
+				"nvs_rt", NS_MANIFEST, NVS_READWRITE, &manifest_handle_);
 		if (err != ESP_OK) {
 				ESP_LOGE(TAG, "Failed to open '%s' namespace: %s",
 						NS_DEVICE, esp_err_to_name(err));
 				return std::unexpected(ConfigError::NVSFailure);
 		}
 
-		// Attestation namespace is read-only from this component, but
-		// NVS_READWRITE is needed for nvs_open to succeed even if the namespace 
-		// doesn't exist yet.
-		err = nvs_open(NS_ATTESTATION, NVS_READWRITE, &attestation_handle_);
+		// TODO: Currently unused, remove if no use.
+		err = nvs_open_from_partition(
+				"nvs_rt", NS_ATTESTATION, NVS_READWRITE, &attestation_handle_);
 		if (err != ESP_OK) {
 				ESP_LOGE(TAG, "Failed to open '%s' namespace: %s",
 						NS_DEVICE, esp_err_to_name(err));

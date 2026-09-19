@@ -1,0 +1,32 @@
+dependencies:
+  espressif/cjson:
+    component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.7.19~2
+  espressif/esp-cryptoauthlib:
+    component_hash: a71b50c5693d8987ae531c342e414edfeaf09ef188c588e1b32b7c83e4a75a5a
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 3.7.9~2
+  idf:
+    source:
+      type: idf
+    version: 5.3.6
+direct_dependencies:
+- espressif/cjson
+- espressif/esp-cryptoauthlib
+- idf
+manifest_hash: 14ab1ce72bd9da89b219173d49d8f230295066da149780f84ba58d95af4907d5
+target: esp32
+version: 2.0.0

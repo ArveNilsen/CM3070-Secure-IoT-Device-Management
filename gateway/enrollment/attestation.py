@@ -2,26 +2,35 @@ from __future__ import annotations
 
 import hashlib
 import os
+from pathlib import Path
 
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
-from cryptography.exceptions import InvalidSignature
+from registry.trust_store import TrustStore
+
 
 def raw_to_der(raw_sig: bytes) -> bytes:
     """
-    TODO: Add to report, implementation section. 
+    TODO: Add to report, implementation section.
     Embedded use R||S, server uses DER
 
     Must be applied before calling pub_key.verify()
+
+    The ATEC608 (via cryptoauthlib's atcab_sign) produces a raw 64-byte R||S
+    signature. This function converts to DER.
     """
+    if len(raw_sig) != 64:
+        raise ValueError(
+            f"Expected 64-byte raw R||S signature, got {len(raw_sig)} bytes")
+
     r = int.from_bytes(raw_sig[:32], byteorder='big')
     s = int.from_bytes(raw_sig[32:], byteorder='big')
     return encode_dss_signature(r, s)
 
 # ---
-# Registered stub devices
-# Must match CONFIG values on device side
+# Stub verification
 # ---
 
 STUB_DEVICES: dict[str, bytes] = {
@@ -29,61 +38,82 @@ STUB_DEVICES: dict[str, bytes] = {
     "stub-device-002": b"",
 }
 
-# ---
-# Stub verification
-# ---
 
-def _verify_stub(public_key_id: str, payload: bytes,
-                 signature: bytes) -> bool:
+def _verify_stub(public_key_id: str, payload: bytes, signature: bytes) -> bool:
     """
     Accept any well-formed request from a registered stub device ID.
     Logs that verification is bypassed.
     """
     if public_key_id not in STUB_DEVICES:
-        print(f"[STUB ATTESTATION] REJECTED: "
-              f"unknown device '{public_key_id}'")
+        print(f"[STUB ATTESTATION] REJECTED: unknown device '{public_key_id}'")
         return False
 
     print(f"[STUB ATTESTATION] WARNING: "
-          f"accepting '{public_key_id}' without "
-          f"cryptographic verification. "
-          f"Replace before production.")
+          f"accepting '{public_key_id}' without cryptographic verification. "
+          "Replace before production.")
     return True
 
 
 # ---
-# ECDSA verification (P-256)
+# ECDSA verification (P-256), backed by the trust store
+# populated via register_device.py
 # ---
 
-REGISTERED_DEVICES: dict[str, bytes] = {
-    "esp32-001": bytes.fromhex("60"), # TODO: Add provisioning output.
-}
+_trust_store: TrustStore | None = None
 
-def _verify_ecdsa(public_key_id: str,
-                  payload: bytes,
+
+def _get_trust_store() -> TrustStore:
+    """
+    Avoids opening the trust store in stub mode.
+    """
+    global _trust_store
+    if _trust_store is None:
+        _trust_store = TrustStore(
+            str(Path(__file__).parent.parent / "trust_store.db"))
+    return _trust_store
+
+
+def _verify_ecdsa(public_key_id: str, payload: bytes,
                   signature: bytes) -> bool:
-    raw_pub = REGISTERED_DEVICES.get(public_key_id)
+    row = _get_trust_store().get(public_key_id)
+    if row is None:
+        print(f"[ATTESTATION] REJECTED: "
+              f"'{public_key_id}' is not a registered device")
+        return False
 
-    if not raw_pub:
+    try:
+        raw_pub = bytes.fromhex(row["public_key_id"])
+    except ValueError:
+        print(f"[ATTESTATION] Malformed stored public key "
+              f"for '{public_key_id}'")
+        return False
+
+    if len(raw_pub) != 64:
+        print(f"[ATTESTATION] REJECTED: '{public_key_id}' "
+              "has a malformed public key "
+              f"(expected 64 bytes, got {len(raw_pub)})")
+        return False
+
+    try:
+        der_signature = raw_to_der(signature)
+    except ValueError as e:
+        print(f"[ATTESTATION] Malformed signature for "
+              f"'{public_key_id}': {e}")
         return False
 
     try:
         pub_key = ec.EllipticCurvePublicKey.from_encoded_point(
             ec.SECP256R1(), b'\x04' + raw_pub) # uncompressed
-        pub_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
+        pub_key.verify(der_signature, payload, ec.ECDSA(hashes.SHA256()))
         return True
-
-    except InvalidSignature as e:
-        print(f"Invalid signature error: {e}")
+    except InvalidSignature:
+        print("[ATTESTATION] REJECTED: invalid signature "
+              f"for '{public_key_id}'")
         return False
-
     except Exception as e:
-        print(f"Verification error: {e}")
+        print("[ATTESTATION] Verification error for "
+              f"'{public_key_id}': {e}")
         return False
-
-
-def _verify_ecdsa(public_key_id: str, payload: bytes, signature: bytes) -> bool:
-    raise NotImplementedError
 
 
 # ---

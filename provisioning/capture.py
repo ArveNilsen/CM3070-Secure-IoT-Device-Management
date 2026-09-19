@@ -1,6 +1,6 @@
 """
 Captures provisioning output from ESP32 serial console and writes a device
-maifest file. Start this script before executing the provisioning firmware
+manifest file. Start this script before executing the provisioning firmware
 on the device.
 
 Usage:
@@ -8,21 +8,39 @@ Usage:
                        --device-id esp32-001 \
                        --device-class sensor
 """
-import serial, jsonm argparse
+import argparse
+import json
+import time
 from datetime import datetime, timezone
+from pathlib import Path
+
+import serial
+
+READ_TIMEOUT_S = 30
+
+
 
 def capture(port: str, device_id: str, device_class: str):
-    ser = serial.Serial(port, 115200, timeout=30)
+    ser = serial.Serial(port, 115200, timeout=2)
     print(f"Listening on {port} for provisioning output...")
 
-    while True:
+    data = None
+    deadline = time.monotonic() + READ_TIMEOUT_S
+    while time.monotonic() < deadline:
         line = ser.readline().decode(errors='ignore')
+        if not line:
+            continue
         if line.startswith("PROVISION_JSON:"):
             raw = line.removeprefix("PROVISION_JSON:").strip()
             data = json.loads(raw)
             break
-        else:
-            raise RuntimeError("No provisioing output received")
+
+    if data is None:
+        raise RuntimeError(
+            f"No provisioning output received within "
+            f"{READ_TIMEOUT_S}s - is the provisioning "
+            f"firmware running on {port}?")
+
 
     manifest = {
         "device_id": device_id,
@@ -38,12 +56,13 @@ def capture(port: str, device_id: str, device_class: str):
         "provisioning_tool_version": "0.1.0",
     }
 
-    out_path = f"provisioning/devices/{device_id}.json"
-    with open(out_path, "w") as f:
-        json.dump(manifest, f, indent=2)
+    out_dir = Path("provisioning/devices")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{device_id}.json"
+    out_path.write_text(json.dumps(manifest, indent=2))
 
     print(f"Wrote {out_path}")
-    print(f"Register with gateway using:")
+    print("Register with gateway using:")
     print(f"    python3 register_device.py {out_path}")
 
 

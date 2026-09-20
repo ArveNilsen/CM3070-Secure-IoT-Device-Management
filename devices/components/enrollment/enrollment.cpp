@@ -155,7 +155,7 @@ EnrollmentService::request_nonce()
     }
 
     std::vector<uint8_t> nonce_bytes = hex_decode(nonce_item->valuestring);
-    ESP_LOGI(TAG, "Nonce received: %s", nonce_item->valuestring));
+    ESP_LOGI(TAG, "Nonce received: %s", nonce_item->valuestring);
 
 		cJSON_Delete(response);
     return nonce_bytes;
@@ -172,6 +172,7 @@ EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
 		
 		auto fw_hash = identity_.firmware_hash(CONFIG_FIRMWARE_HASH_SLOT);
 		if (!fw_hash) {
+				ESP_LOGE(TAG, "CONFIG_FIRMWARE_HASH_SLOT: %d", CONFIG_FIRMWARE_HASH_SLOT);
 				ESP_LOGE(TAG, "Failed to read firmware hash from hardware identity");
 				return std::unexpected(EnrollmentError::AttestationFailed);
 		}
@@ -208,6 +209,8 @@ EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
 				ESP_LOGE(TAG, "Signing failed");
         return std::unexpected(EnrollmentError::AttestationFailed);
 		}
+		ESP_LOGI(TAG, "Raw signature (64 bytes): %s", 
+				hex_encode(*sig_result).c_str());
     
     // Add signature to payload for transmission
 		cJSON* envelope = cJSON_CreateObject();
@@ -218,7 +221,7 @@ EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
     std::vector<uint8_t> evidence(evidence_str, evidence_str + strlen(evidence_str));
 
     cJSON_free(evidence_str);
-    cJSON_Delete(payload);
+    cJSON_Delete(envelope);
 
     return evidence;
 }

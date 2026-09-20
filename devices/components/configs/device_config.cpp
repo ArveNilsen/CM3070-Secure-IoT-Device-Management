@@ -14,14 +14,13 @@ constexpr const char* NS_ATTESTATION	= "attestation";
 
 namespace key {
 constexpr const char* wifi_ssid = "wifi_ssid";
-constexpr const char* wifi_password = "wifi_password";
-constexpr const char* gateway_host = "gateway_host";
+constexpr const char* wifi_password = "wifi_pass";
+constexpr const char* gateway_host = "gw_host";
 constexpr const char*	device_id = "device_id"; 
-constexpr const char* public_key_id = "public_key_id";
+constexpr const char* public_key_id = "pubkey_id";
 constexpr const char* enrolled = "enrolled";
 constexpr const char* manifest = "manifest";
 constexpr const char* signature = "signature";
-constexpr const char* firmware_hash = "firmware_hash";
 
 }	// namespace anon::key
 
@@ -84,13 +83,14 @@ std::expected<void, ConfigError> DeviceConfig::ensure_initialized() const
 
 namespace {
 
-std::expected<std::string, ConfigError>
-get_string(nvs_handle_t handle, const char* key)
+DeviceConfig::string_result get_string(nvs_handle_t handle, const char* key)
 {
 		size_t len = 0;	
 		esp_err_t err = nvs_get_str(handle, key, nullptr, &len);
-		if (err == ESP_ERR_NVS_NOT_FOUND)
+		if (err == ESP_ERR_NVS_NOT_FOUND) {
+				ESP_LOGE(TAG, "Key: %s NOT FOUND", key);
 				return std::unexpected(ConfigError::NotFound);
+		}
 
 		if (err != ESP_OK) {
 				ESP_LOGE(TAG, "nvs_get_str size query failed for '%s': %s",
@@ -134,7 +134,7 @@ set_string(nvs_handle_t handle, const char* key, const std::string& value)
 		return {};
 }
 
-std::expected<std::vector<uint8_t>, ConfigError>
+DeviceConfig::bytes_result
 get_blob(nvs_handle_t handle, const char* key)
 {
 		size_t len = 0;
@@ -206,7 +206,8 @@ DeviceConfig::string_result DeviceConfig::gateway_host() const
 		if (auto ok = ensure_initialized(); !ok)
 			return std::unexpected(ok.error());
 
-		return get_string(device_handle_, key::gateway_host);
+		//return get_string(device_handle_, key::gateway_host);
+		return "192.168.86.158";
 }
 
 // ---

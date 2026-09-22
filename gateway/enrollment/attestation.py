@@ -5,10 +5,31 @@ import os
 from pathlib import Path
 
 from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
+from cryptography.hazmat.primitives.asymmetric.utils import ( 
+    encode_dss_signature, decode_dss_signature
+)
+
 from registry.trust_store import TrustStore
+
+_GATEWAY_KEY_PATH = Path(__file__).parent.parent / "gateway_private_key.pem"
+_gateway_private_key = None
+
+
+
+def _get_gateway_key():
+    global _gateway_private_key
+    if _gateway_private_key is None:
+        if not _GATEWAY_KEY_PATH.exists():
+            raise RuntimeError(
+                f"Gateway private key not found at {_GATEWAY_KEY_PATH}. "
+                 "Run generate_gateway.py once before starting the gateway "
+                 "in production mode.")
+        pem_bytes = _GATEWAY_KEY_PATH.read_bytes()
+        _gateway_private_key = serialization.load_pem_private_key(
+            pem_bytes, password=None)
+    return _gateway_private_key
 
 
 def raw_to_der(raw_sig: bytes) -> bytes:
@@ -82,10 +103,11 @@ def _verify_ecdsa(public_key_id: str, payload: bytes,
         return False
 
     try:
-        raw_pub = bytes.fromhex(row["public_key_id"])
+        raw_pub = bytes.fromhex(row["public_key_hex"])
     except ValueError:
         print(f"[ATTESTATION] Malformed stored public key "
               f"for '{public_key_id}'")
+        traceback.print_exc()  # full traceback, confirms exact line
         return False
 
     if len(raw_pub) != 64:
@@ -104,6 +126,8 @@ def _verify_ecdsa(public_key_id: str, payload: bytes,
     try:
         pub_key = ec.EllipticCurvePublicKey.from_encoded_point(
             ec.SECP256R1(), b'\x04' + raw_pub) # uncompressed
+        print(f"[DEBUG] Verifying against payload bytes: {payload!r}")
+        print(f"[DEBUG] Payload length: {len(payload)}")
         pub_key.verify(der_signature, payload, ec.ECDSA(hashes.SHA256()))
         return True
     except InvalidSignature:
@@ -148,11 +172,21 @@ def sign_manifest(manifest_data: bytes) -> bytes:
     """
     Sign a manifest with the gateway key.
 
-    Stub: returns SHA-256 of data with a fixed prefix. Not a real signature.
+    Stub mode: returns SHA-256 of data with a fixed prefix. 
+    Not a real signature.
+
+    Production mode: real ECDSA P-256 R||S signature. Matches the ATECC608
+    signatures, device-side.
     """
     if STUB_MODE:
         stub_key = b"stub-gateway-signing-key"
         return hashlib.sha256(stub_key + manifest_data).digest()
 
-    # Load gateway private key and sign with ECDSA P-256
-    raise RuntimeError("Production manifest signing not yet implemented")
+    private_key = _get_gateway_key()
+    der_signature = private_key.sign(manifest_data, ec.ECDSA(hashes.SHA256()))
+
+    # Convert DER to R||S
+    r, s = decode_dss_signature(der_signature)
+    raw_signature = r.to_bytes(32, byteorder='big') + \
+                    s.to_bytes(32, byteorder='big')
+    return raw_signature

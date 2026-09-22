@@ -9,7 +9,8 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent)) # gateway
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT / "gateway"))
 
 from registry.trust_store import TrustStore
 
@@ -31,7 +32,7 @@ def register(manifest_path: str):
         print("Aborted.")
         return
 
-    store = TrustStore("gateway/trust_store.db")
+    store = TrustStore(str(_PROJECT_ROOT / "gateway" / "trust_store.db"))
     if store.is_registered(device_id):
         print(f"WARNING: '{device_id}' is already registered. "
               f"Re-run with a different device_id is this is a new device.")

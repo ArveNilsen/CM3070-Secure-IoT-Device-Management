@@ -77,9 +77,15 @@ bool Esp32WifiDriver::start()
 {
     esp_err_t err = esp_wifi_start();
     if (err != ESP_OK) {
-        ESP_LOGE(kTag, "esp_wifi_start_failed: %d", err);
+        ESP_LOGE(kTag, "esp_wifi_start failed: %d", err);
         return false;
     }
+		err = esp_wifi_set_ps(WIFI_PS_NONE);
+		if (err != ESP_OK) {
+				ESP_LOGW(kTag, "esp_wifi_set_ps failed: %d", err);
+		}
+
+		ESP_LOGI(kTag, "WiFi started.");
 
     return true;
 }

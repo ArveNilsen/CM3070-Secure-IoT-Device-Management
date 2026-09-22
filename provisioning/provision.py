@@ -24,8 +24,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Must match devices/partitions.csv
+NVS_ID_PARTITION_OFFSET = "0x9000"
+NVS_ID_PARTITION_SIZE   = "0x3000"
+
 # NVS partition layout
-NVS_CSV_TEMPLATE = """key,type,encoding.value
+NVS_CSV_TEMPLATE = """key,type,encoding,value
 device_cfg,namespace,,
 wifi_ssid,data,string,{wifi_ssid}
 wifi_pass,data,string,{wifi_password}
@@ -42,7 +46,7 @@ def generate_nvs_csv(args, public_key_id: str, out_path: Path):
         wifi_password=args.password,
         gateway_host=args.gateway_host,
         device_id=args.device_id,
-        public_key=public_key_id,
+        public_key_id=public_key_id,
     )
 
     out_path.write_text(content)
@@ -50,7 +54,7 @@ def generate_nvs_csv(args, public_key_id: str, out_path: Path):
 
 
 def generate_nvs_binary(csv_path: Path, bin_path: Path,
-                        partition_size: str = "0x6000"):
+                        partition_size: str = NVS_ID_PARTITION_SIZE):
     """
     Invokes ESP-IDF's nvs_partition_gen.py to produce a
     flashable binary image from the CSV definition above.
@@ -70,7 +74,7 @@ def generate_nvs_binary(csv_path: Path, bin_path: Path,
 
 
 def flash_nvs_partition(bin_path: Path, port: str,
-                        offset: str = "0x9000"):
+                        offset: str = NVS_ID_PARTITION_OFFSET):
     """
     Flashes the generated NVS image to the device_cfg
     partition's offset.

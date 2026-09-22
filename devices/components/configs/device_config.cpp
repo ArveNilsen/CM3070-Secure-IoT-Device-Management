@@ -13,11 +13,14 @@ constexpr const char* NS_MANIFEST			= "manifest";
 constexpr const char* NS_ATTESTATION	= "attestation";
 
 namespace key {
+// Read-only
 constexpr const char* wifi_ssid = "wifi_ssid";
 constexpr const char* wifi_password = "wifi_pass";
 constexpr const char* gateway_host = "gw_host";
 constexpr const char*	device_id = "device_id"; 
 constexpr const char* public_key_id = "pubkey_id";
+
+// Read-write
 constexpr const char* enrolled = "enrolled";
 constexpr const char* manifest = "manifest";
 constexpr const char* signature = "signature";
@@ -243,10 +246,10 @@ std::string DeviceConfig::device_class() const
 bool DeviceConfig::is_enrolled() const
 {
 		if (auto ok = ensure_initialized(); !ok)
-			return false;
+				return false;
 
 		uint8_t flag = 0;
-		esp_err_t err = nvs_get_u8(device_handle_, key::enrolled, &flag);
+		esp_err_t err = nvs_get_u8(manifest_handle_, key::enrolled, &flag);
 		if (err != ESP_OK)
 				return false; // key not found
 
@@ -258,7 +261,7 @@ std::expected<void, ConfigError> DeviceConfig::set_enrolled(bool enrolled)
 		if (auto ok = ensure_initialized(); !ok)
 				return ok;
 
-		esp_err_t err = nvs_set_u8(device_handle_, key::enrolled,
+		esp_err_t err = nvs_set_u8(manifest_handle_, key::enrolled,
 				enrolled ? 1 : 0);
 		if (err != ESP_OK) {
 				ESP_LOGE(TAG, "Failed to set enrolled flag: %s",
@@ -266,7 +269,7 @@ std::expected<void, ConfigError> DeviceConfig::set_enrolled(bool enrolled)
 				return std::unexpected(ConfigError::NVSFailure);
 		}
 
-		err = nvs_commit(device_handle_);
+		err = nvs_commit(manifest_handle_);
 		if (err != ESP_OK)
 				return std::unexpected(ConfigError::NVSFailure);
 

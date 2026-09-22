@@ -69,6 +69,7 @@ public:
 private:
     HardwareIdentity() = default;
     bool stub_mode_ = false;
+		Digest digest_;
 };
 
 } //namespace dev

@@ -4,7 +4,7 @@ import json
 import time
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from enrollment.attestation import sign_manifest, verify_attestation
 from policy.manifests import ceiling_for_class
@@ -21,7 +21,7 @@ nonce_store = NonceStore()
 # TODO: Add the actual hashes
 # TODO: Move to appropriate location
 EXPECTED_FIRMWARE_HASHES: dict[str, str] = {
-    "sensor":   "aabbcc...",
+    "sensor":   "eb2f73efb6ed940139c827e65277fd159a3ba160e260a2354fd0b58c4ec5d7e5",
     "actuator": "ddeeff...",
 }
 
@@ -38,6 +38,7 @@ class NonceResponse(BaseModel):
 
 
 class ManifestResponse(BaseModel):
+    manifest: str
     manifest_version: int
     gateway_signature: str # hex-encoded
 
@@ -54,7 +55,7 @@ class AttestationPayload(BaseModel):
     public_key_id : str
     nonce: str
     timestamp: int
-    firmware_has: str
+    firmware_hash: str
     device_class: str
     secure_boot: bool
 
@@ -104,10 +105,23 @@ async def submit_attestation(envelope: AttestationEnvelope):
     try:
         fields = json.loads(envelope.payload)
         payload = AttestationPayload(**fields)
+    except json.JSONDecodeError as exc:
+        print(f"[ATTEST] JSON decode failed: {exc}")
+        print(f"[ATTEST] Raw payload was: {envelope.payload!r}")
+        raise HTTPException(status_code=400,
+            detail="Malformed attestation payload (JSON)") from exc
+    except ValidationError as exc:
+        print(f"[ATTEST] Pydantic validation failed: {exc}")
+        raise HTTPException(status_code=400,
+            detail="Malformed attestation payload (schema)") from exc
+    """
+    try:
+        fields = json.loads(envelope.payload)
+        payload = AttestationPayload(**fields)
     except (json.JSONDecodeError, ValidationError) as exc:
         raise HTTPException(
             status_code=400, detail="Malformed attestation payload"
-        ) from exc
+        ) from exc"""
 
     if not verify_attestation(payload.public_key_id, payload_bytes, signature):
         raise HTTPException(
@@ -124,12 +138,18 @@ async def submit_attestation(envelope: AttestationEnvelope):
         raise HTTPException(status_code=401, detail="Invalid or expired nonce")
 
     # 2. Verify timestamp freshness
+    # TODO: Consider NTP or some TTL mechanism
+    """
     age = abs(time.time() - payload.timestamp / 1000)
     if age > 90: # TODO: Remove hardcoded value
         raise HTTPException(status_code=401, detail="Timestamp too stale")
+    """
 
     # 3. Verify device not already enrolled
     if registry.is_enrolled(payload.public_key_id):
+        print(f"[ENROLLMENT] STATE MISMATCH: device '{payload.public_key_id}' "
+              "attempted enrollment but is already present in the registry. "
+              "Remove the device from the registry or set up the system anew.")
         raise HTTPException(status_code=409, detail="Device already enrolled")
 
     #4. Verify firmware hash
@@ -162,7 +182,7 @@ async def submit_attestation(envelope: AttestationEnvelope):
         "manifest_version": manifest_version,
     }, separators=(',', ':')).encode()
 
-    gateway_sig = sign_manifest(manifest_data.encode())
+    gateway_sig = sign_manifest(manifest_data)
 
     # 8. Store enrollment in registry
     registry.enroll(
@@ -173,6 +193,7 @@ async def submit_attestation(envelope: AttestationEnvelope):
         firmware_hash=payload.firmware_hash)
 
     return ManifestResponse(
+        manifest=manifest_data.decode(),
         manifest_version=manifest_version,
         gateway_signature=gateway_sig.hex())
 

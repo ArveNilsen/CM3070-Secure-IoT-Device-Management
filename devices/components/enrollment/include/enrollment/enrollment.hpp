@@ -15,6 +15,7 @@ class HardwareIdentity;
 
 enum class EnrollmentError {
     AlreadyEnrolled,
+		StateMismatch,
     NetworkFailure,
     NonceTimeout,
     AttestationFailed,

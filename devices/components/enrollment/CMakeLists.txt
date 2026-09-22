@@ -4,5 +4,5 @@ idf_component_register(
     SRCS "enrollment.cpp"
     INCLUDE_DIRS "include"
 		PRIV_REQUIRES esp_http_client mbedtls esp_timer
-		REQUIRES configs identity
+		REQUIRES configs identity json_util
 )

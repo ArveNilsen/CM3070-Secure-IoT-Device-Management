@@ -3,3 +3,5 @@ sdconfig
 __pycache__/
 sdkconfig.old
 managed_components/
+apps/provisioning_tool/main/firmware_hash.hpp
+gateway_private_key.pem

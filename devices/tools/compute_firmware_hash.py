@@ -21,7 +21,7 @@ TEMPLATE = """\
 // Computed:   {timestamp}
 #pragma once
 
-inline constexpr const char* FIRMWARE_SHA256_HEX = {hash_hex}";
+inline constexpr const char* FIRMWARE_SHA256_HEX = "{hash_hex}";
 """
 
 

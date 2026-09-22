@@ -17,6 +17,9 @@
 #include "wifi_station/esp32/esp32_wifi_driver.hpp"
 #include "wifi_station/state_machine.hpp"
 
+#include "cryptoauthlib.h"
+#include "enrollment/hex_util.hpp"
+
 // Architectural boundary note:
 // Components use std::expected<T, E> throughout.
 // main.cpp is the only file that converts to esp_err_t
@@ -27,7 +30,21 @@
 
 namespace {
 
-const char *kTag = "APP_MAIN";
+const char *TAG = "APP_MAIN";
+
+esp_err_t init_nvs_partition(const char* label)
+{
+		esp_err_t err = nvs_flash_init_partition(label);
+		if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
+				err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+				ESP_LOGW(TAG, "Erasing NVS partition '%s' "
+											 "(corrupt or version mismatch)", label);
+				ESP_ERROR_CHECK(nvs_flash_erase_partition(label));
+				err = nvs_flash_init_partition(label);
+		}
+
+		return err;
+}
 
 } // namespace anon
 
@@ -52,67 +69,95 @@ esp_err_t to_esp_err(std::expected<T, E> const& result) noexcept {
     return to_esp_err(result.error());
 }
 
-} // namespace dev
-
 // Static/global lifetime objects:
 wifi_station::esp32::Esp32WifiDriver a_driver;
 wifi_station::WifiStationStateMachine a_sm(a_driver, /*maxRetries=*/5);
 
 extern "C" void app_main()
 {
-    using namespace dev;
+		ESP_ERROR_CHECK(init_nvs_partition("nvs_id"));
+		ESP_ERROR_CHECK(init_nvs_partition("nvs_rt"));
 
-    // Wifi config is stored in NVS memory
-    // Flash before use to avoid garbage data
-    // Abort on error
-    esp_err_t err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES ||
-        err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-    }
+    auto& identity  = HardwareIdentity::instance();
+    ESP_ERROR_CHECK_WITHOUT_ABORT(to_esp_err(identity.init()));
+
+		uint8_t current_pubkey[64];
+		ATCA_STATUS status = atcab_get_pubkey(CONFIG_ATTESTATION_KEY_SLOT, current_pubkey);
+		if (status == ATCA_SUCCESS) {
+				ESP_LOGI(TAG, "Current public key in slot: %s",
+								 hex_encode(std::span(current_pubkey, 64)).c_str());
+		} else {
+				ESP_LOGE(TAG, "atcab_get_pubkey failed: 0x%02x", status);
+		}
 
     // Initialise config and identity
-    auto& config    = DeviceConfig::instance();
-    ESP_ERROR_CHECK_WITHOUT_ABORT(to_esp_err(config.init()));
+    auto& config     = DeviceConfig::instance();
+		auto init_result = config.init();
+		if (!init_result) {
+				ESP_LOGE(TAG, "DeviceConfig::init() failed. "
+											 "Device is not provisioned - Halting.");
+				return;
+		}
 
-    ESP_ERROR_CHECK(err); // abort on error
+		auto ssid = config.wifi_ssid();
+		auto password = config.wifi_password();
+		if (!ssid || !password) {
+				ESP_LOGE(TAG, "Cannot bring up Wi-Fi -- SSID or password "
+                  "not available from DeviceConfig. Halting.");
+				return;
+		}
+
+		wifi_station::StaConfig sta_cfg{*ssid, *password};
+		auto step = wifi_station::esp32::bringUpStation(a_sm, sta_cfg);
 
 		// Set up WiFi and connect to network
 		wifi_station::esp32::ConnectivityWaiter waiter(a_sm);
 
-		auto step = wifi_station::esp32::bringUpStation(a_sm, wifi_station::StaConfig{"Bjerkes residens", "3lvisinth3building"});
 		if (step != wifi_station::esp32::BringupStep::Ok) {
-			ESP_LOGE(kTag, "Wi-Fi bring-up failed at: %s", wifi_station::esp32::toString(step));
+			ESP_LOGE(TAG, "Wi-Fi bring-up failed at: %s", wifi_station::esp32::toString(step));
 			return;
 		}
 
 		if (!waiter.waitForGotIp(20000)) {
-			ESP_LOGE(kTag, "timed out waiting for GOT_IP");
+			ESP_LOGE(TAG, "timed out waiting for GOT_IP");
 			return;
 		}
 
-    ESP_LOGI(kTag, "Wi-Fi connected, ip=%s -- attempting gateway GET", a_sm.ip()->c_str());
-
-    auto& identity  = HardwareIdentity::instance();
-    ESP_ERROR_CHECK_WITHOUT_ABORT(to_esp_err(identity.init()));
+    ESP_LOGI(TAG, "Wi-Fi connected, ip=%s -- attempting gateway GET", a_sm.ip()->c_str());
 
     // Initialise transport
     NetworkTransport transport{config};
     transport.connect();
 
+		ESP_LOGI(TAG, "Transport connected");
+
     // Enroll if not already enrolled
     if (!config.is_enrolled()) {
         EnrollmentService enrollment{config, identity};
-        auto result = enrollment.enroll();
+				ESP_LOGI(TAG, "Starting enrollment...");
+        if (auto result = enrollment.enroll(); !result) {
+						switch (result.error()) {
+						case EnrollmentError::AlreadyEnrolled:
+								// Normal, log and recover
+								ESP_LOGI(TAG, "Already enrolled, proceeding...");
+								break;
+						
+						case EnrollmentError::StateMismatch:
+								// Logged on error. Halt.
+								ESP_LOGE(TAG, "Manual operator intervention needed.");
+								return;
 
-        if (!result) {
-            ESP_LOGE(kTag, "Enrollment failed, halting");
-            return;
-        }
+						default:
+								ESP_LOGE(TAG, "Enrollment failed, halting");
+								return;
+						}
 
-        config.store_manifest(result->manifest, result->gateway_signature);
+        } else {
+						config.store_manifest(result->manifest, result->gateway_signature);
+				}
     }
+
+		ESP_LOGI(TAG, "Device already enrolled. Proceeding...");
 
     // Initialise capability enforcement from stored manifest
     CapabilityEnforcer  enforcer{config};
@@ -134,3 +179,4 @@ extern "C" void app_main()
         vTaskDelay(pdMS_TO_TICKS(CONFIG_HEARTBEAT_INTERVAL_MS));
     }
 }
+} // namespace dev

@@ -100,6 +100,10 @@ public:
 		 */
 		std::expected<uint32_t, ConfigError> capability_ceiling() const;
 
+		std::expected<uint32_t, ConfigError> active_capabilities() const;
+
+		std::expected<void, ConfigError> store_active_capabilities(uint32_t mask);
+
 private:
     DeviceConfig() = default;
 

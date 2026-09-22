@@ -25,6 +25,8 @@ constexpr const char* enrolled = "enrolled";
 constexpr const char* manifest = "manifest";
 constexpr const char* signature = "signature";
 
+constexpr const char* active_caps = "active_caps";
+
 }	// namespace anon::key
 
 } // namespace
@@ -338,6 +340,45 @@ std::expected<uint32_t, ConfigError> DeviceConfig::capability_ceiling() const
 		uint32_t ceiling = static_cast<uint32_t>(caps->valuedouble);
 		cJSON_Delete(parsed);
 		return ceiling;
+}
+
+std::expected<uint32_t, ConfigError> DeviceConfig::active_capabilities() const
+{
+		if (auto ok = ensure_initialized(); !ok)
+				return std::unexpected(ok.error());
+		if (!is_enrolled())
+				return std::unexpected(ConfigError::NotEnrolled);	
+
+		uint32_t value = 0;
+		esp_err_t err = nvs_get_u32(manifest_handle_, key::active_caps, &value);
+		if (err == ESP_ERR_NVS_NOT_FOUND) {
+				// Not yet written. CapabilityEnforcer treats this as full ceiling
+				return std::unexpected(ConfigError::NotFound);
+		}
+
+		if (err != ESP_OK)
+				return std::unexpected(ConfigError::NVSFailure);
+
+		return value;
+}
+
+std::expected<void, ConfigError> 
+DeviceConfig::store_active_capabilities(uint32_t mask)
+{
+		if (auto ok = ensure_initialized(); !ok)
+				return ok;
+
+		esp_err_t err = nvs_set_u32(manifest_handle_, key::active_caps, mask);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "Failed to store active_caps: %s", esp_err_to_name(err));
+				return std::unexpected(ConfigError::NVSFailure);
+		}
+
+		err = nvs_commit(manifest_handle_);
+		if (err != ESP_OK)
+				return std::unexpected(ConfigError::NVSFailure);
+
+		return {};
 }
 
 } // namespace dev

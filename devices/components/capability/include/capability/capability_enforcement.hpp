@@ -1,7 +1,6 @@
 #pragma once
 
-// Standard library includes
-#include <string_view>
+#include <cstdint>
 #include <expected>
 
 namespace dev {
@@ -16,8 +15,8 @@ enum class Capability : uint32_t {
 };
 
 enum class EnforcementError {
+		NotInitialized,
     CapabilityDenied,
-    DeviceNotEnrolled,
     ManifestCorrupt,
     DeviceQuarantined,
     DeviceRestricted
@@ -27,14 +26,15 @@ class DeviceConfig;
 
 class CapabilityEnforcer {
 public:
-
-    /**
-     * @brief The result type of the class.
-     * void or error enum
-     */
     using result_type = std::expected<void, EnforcementError>;
 
     explicit CapabilityEnforcer(DeviceConfig& config);
+
+		/**
+		 * @brief Must be called once before other class methods are used.
+		 * Loads the enrolled ceiling from the stored manifest.
+		 */
+		result_type init();
 
     /**
      * @brief Check if capability is currently permitted.
@@ -52,7 +52,7 @@ public:
     /**
      * @brief Apply quarantine. Sets active to empty set.
      */
-    void quarantine();
+    result_type quarantine();
 
     /**
      * @brief Restore active capabilities to full manifest ceiling.
@@ -70,16 +70,14 @@ public:
      */
     uint32_t manifest_capabilities() const;
 
+		bool is_qurantined() const;
+
 private:
     DeviceConfig&   config_;
     uint32_t        active_mask_    = 0;
     uint32_t        ceiling_mask_   = 0;
     bool            quarantined_    = false;
-
-    /**
-     * @brief Load ceiling from stored manifest, called at init
-     */
-    result_type load_manifest();
+		bool						initialized_		= false;
 };
 
 } // namespace dev

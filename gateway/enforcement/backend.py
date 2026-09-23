@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 
-class NetworkEnforcementBAckend(ABC):
+class NetworkEnforcementBackend(ABC):
     @abstractmethod
     def quarantine(self, mac_address: str) -> None: ...
     @abstractmethod
     def restore(self, mac_address: str) -> None: ...
 
-class NullBackend(NetworkEnforcementBAckend):
+class NullBackend(NetworkEnforcementBackend):
     def quarantine(self, mac_address: str) -> None:
         print(f"[Nullbackend] would quarantine {mac_address}")
     def restore(self, mac_address: str) -> None:

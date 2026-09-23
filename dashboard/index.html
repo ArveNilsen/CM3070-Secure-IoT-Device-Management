@@ -1,61 +1,60 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <title>IIoT Device Registry</title>
-<style>
-body { font-family: sans-serif; margin 2rem; }
-table { border-collapse: collapse; width: 100%; }
-th, td { border: 1px solid #ccc; padding: 8px;
-    text-align: left; }
-.quarantined {background: #fdd; }
-.enrolled { background: #dfd; }
-button { cursor: pointer; }
-</style>
-    </head>
-    <body>
-        <h1>Device Registry</h1>
-        <table id="devices">
-            <thead>
-                <tr>
-                    <th>Device</th><th>Class</th>
-                    <th>State</th><th>Active Caps</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody></tbody>
-        </table>
+<head>
+  <title>IIoT Device Registry</title>
+	<style>
+		body { font-family: sans-serif; margin 2rem; }
+		table { border-collapse: collapse; width: 100%; }
+		th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+		.quarantined {background: #fdd; }
+		.enrolled { background: #dfd; }
+		button { cursor: pointer; }
+	</style>
+</head>
+<body>
+	<h1>Device Registry</h1>
+	<table id="devices">
+		<thead>
+				<tr>
+						<th>Device</th><th>Class</th><th>State</th>
+						<th>Active Caps</th><th>Action</th>
+				</tr>
+		</thead>
+		<tbody></tbody>
+	</table>
 
-        <script>
-            async function refresh() {
-                const res = await fetch('http://localhost:8080/manage/devices');
-                const devices = await res.json();
-                const tbody = document.querySelector('#devices tbody');
-                tbody.innerHTML = '';
-                for (const d of devices) {
-                    const row = document.createElement('tr');
-                    row.className = d.state;
-                    row.innerHTML = `
-                        <td>${d.public_key_id}</td>
-                        <td>${d.device_class}</td>
-                        <td>${d.state}</td>
-                        <td>${d.active_caps.toString(2)
-                            .padStart(5, '0')}</td>
-                        <td><button onclick="quarantine('${d.public_key_id}')">
-                            Quarantine</button></td>
-                    `;
-                    tbody.appendChild(row);
-                }
-            }
+	<script>
+		const API_BASE = 'http://localhost:8080';
 
-            async function quarantine(id) {
-                await fetch(
-                    `http://localhost:8080/manage/${id}/quarantine`,
-                    { method: 'POST' });
-                refresh();
-            }
+		async function refresh() {
+			const res = await fetch(`${API_BASE}/manage/devices`);
+				const devices = await res.json();
+				const tbody = document.querySelector('#devices tbody');
+				tbody.innerHTML = '';
+				for (const d of devices) {
+						const row = document.createElement('tr');
+						row.className = d.state;
+						row.innerHTML = `
+								<td>${d.public_key_id}</td>
+								<td>${d.device_class}</td>
+								<td>${d.state}</td>
+								<td>${d.active_caps.toString(2).padStart(5, '0')}</td>
+								<td><button onclick="quarantine('${d.public_key_id}')">
+										Quarantine</button></td>
+						`;
+						tbody.appendChild(row);
+				}
+		}
 
-            setInterval(refresh, 2000);
-            refresh();
-        </script>
-    </body>
+		async function quarantine(id) {
+				await fetch(
+					`${API_BASE}/manage/${id}/quarantine`,
+						{ method: 'POST' });
+				refresh();
+		}
+
+		setInterval(refresh, 2000);
+		refresh();
+	</script>
+</body>
 </html>

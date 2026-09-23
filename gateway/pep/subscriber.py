@@ -1,10 +1,19 @@
 import json
 import paho.mqtt.client as mqtt
 
+import sys
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
 from registry.store import DeviceRegistry
-from policy.maifests import Capability
+from policy.manifests import Capability
+from enforcement.backend import NullBackend
+from pep.decision import should_accept
 
 registry = DeviceRegistry("registry.db")
+backend = NullBackend() # TODO: Replace stub impl
 
 TOPIC_TELEMETRY = "device/+/telemetry"
 
@@ -17,17 +26,10 @@ def on_message(client, userdata, msg):
         print(f"REJECT: unknown device {public_key_id}")
         return
 
-    if device.state == "quarantined":
-        print(f"REJECT: {public_key_id} is quarantined - dropping message")
-        registry._audit(public_key_id, "rejected_quarantined", 
-                        f"topic={msg.topic}")
-        return
-
-    required_cap = Capability.PUBLISH_TELEMETRY
-    if not (device.active_caps & required_cap):
-        print(f"REJECT: {public_key_id} lacks PUBLISH_TELEMETRY capability")
-        registry._audit(public_key_id, "policy_violation",
-                        f"topic={msg.topic} missing_cap=PUBLISH_TELEMETRY")
+    if not should_accept(device.state, device.active_caps, 
+                         int(Capability.PUBLISH_TELEMETRY)):
+        print(f"REJECT: {public_key_id} (state={device.state})")
+        registry._audit(public_key_id, "rejected", f"topic{msg.topic}")
         return
 
     # Accepted - process normally
@@ -37,7 +39,7 @@ def on_message(client, userdata, msg):
 
 
 def run():
-    client = mqtt.Client()
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     client.on_message = on_message
     client.connect("localhost", 1883)
     client.subscribe(TOPIC_TELEMETRY)

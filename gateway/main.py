@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import enrollment.router as enrollment_module
 from enrollment.router import router as enrollment_router
+import management.router as management_module
+from management.router import router as management_router
 from registry.store import DeviceRegistry
 
 app = FastAPI(
@@ -23,8 +25,10 @@ registry = DeviceRegistry("registry.db")
 
 # Inject registry into enrollment router
 enrollment_module.registry = registry
+management_module.registry = registry
 
 app.include_router(enrollment_router)
+app.include_router(management_router)
 
 @app.get("/health")
 async def health():

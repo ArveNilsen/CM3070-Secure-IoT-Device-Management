@@ -1,8 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from registry.store import DeviceRegistry
+from enforcement.backend import NullBackend
 
 router = APIRouter(prefix="/manage")
-registry: DeviceRegistry = None     # Dependency injected in main.py
+registry: DeviceRegistry = None     # Dependency injected
+backend = NullBackend()
 
 @router.post("/{public_key_id}/quarantine")
 async def quarantine_device(public_key_id: str):
@@ -10,8 +12,10 @@ async def quarantine_device(public_key_id: str):
         registry.quarantine(public_key_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    return {"status": "quarantined",
-            "device": public_key_id}
+    device = registry.get(public_key_id)
+    if device.mac_address:
+        backend.quarantine(device.mac_address)
+    return {"status": "quarantined", "device": public_key_id}
 
 
 @router.get("/devices")

@@ -7,6 +7,7 @@ from enrollment.router import router as enrollment_router
 import management.router as management_module
 from management.router import router as management_router
 from registry.store import DeviceRegistry
+from enforcement.ovs_backend import OVSBackend
 
 app = FastAPI(
     title="IoT Enrollment Gateway",
@@ -29,6 +30,10 @@ management_module.registry = registry
 
 app.include_router(enrollment_router)
 app.include_router(management_router)
+
+backend = OVSBackend()
+enrollment_module.backend = backend
+management_module.backend = backend
 
 @app.get("/health")
 async def health():

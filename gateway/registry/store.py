@@ -23,6 +23,7 @@ class DeviceRecord:
     firmware_hash:      str
     enrolled_at:        float
     state:              str # enrolled | restricted | quarantied | revoked
+    mac_address:        str | None = None
 
     def is_active(self) -> bool:
         return self.state in ("enrolled", "restricted")
@@ -69,7 +70,8 @@ class DeviceRegistry:
                         'enrolled',
                         'restricted',
                         'quarantined',
-                        'revoked'))
+                        'revoked')),
+                mac_address     TEXT
             );
 
             CREATE TABLE IF NOT EXISTS audit_log (
@@ -109,7 +111,8 @@ class DeviceRegistry:
                device_class:     str,
                capabilities:     int,
                manifest_version: int,
-               firmware_hash:    str) -> None:
+               firmware_hash:    str,
+               mac_address: str | None = None) -> None:
         """
         Record a successful enrollment.
 
@@ -128,8 +131,9 @@ class DeviceRegistry:
                     manifest_version,
                     firmware_hash,
                     enrolled_at,
-                    state)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'enrolled')
+                    state,
+                    mac_address)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'enrolled', ?)
             """,
             (public_key_id,
              device_class,
@@ -137,7 +141,8 @@ class DeviceRegistry:
              capabilities,
              manifest_version,
              firmware_hash,
-             time.time()))
+             time.time(),
+             mac_address))
 
         self._audit(public_key_id, "enrolled",
                     f"class={device_class} "
@@ -315,7 +320,8 @@ class DeviceRegistry:
             manifest_version=   row["manifest_version"],
             firmware_hash=      row["firmware_hash"],
             enrolled_at=        row["enrolled_at"],
-            state=              row["state"])
+            state=              row["state"],
+            mac_address=        row["mac_address"])
 
 
     def close(self) -> None:

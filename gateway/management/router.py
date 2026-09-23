@@ -34,3 +34,17 @@ async def list_devices():
 @router.get("/{public_key_id}/audit")
 async def device_audit(public_key_id: str):
     return registry.audit_log(public_key_id)
+
+@router.post("/{public_key_id}/quarantine")
+async def quarantine_device(public_key_id: str):
+    try:
+        registry.quarantine(public_key_id)
+    except ValueError as e:
+        raise HTTPException(status=404, detail=str(e))
+    device = registry.get(public_key_id)
+    if device.mac_address:
+        backend.quarantine(device.mac_address)
+    else:
+        print(f"[WARN] {public_key_id} has no recorded MAC. Quarantine applied "
+              "at application layer only.")
+    return {"status": "quarantined", "device": public_key_id}

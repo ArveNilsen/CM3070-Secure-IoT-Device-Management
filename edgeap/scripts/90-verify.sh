@@ -23,14 +23,14 @@ check "bridge has address ${BRIDGE_IP}" \
 		"ip addr show ${BRIDGE_IFACE} | grep -q ${BRIDGE_IP}"
 check "hostapd-edge active" \
 		"systemctl is-active --quiet hostapd-edge"
-check "dnsmasq active" \
-		"systemctl is-active --quiet dnsmasq"
+check "dnsmasq correctly disabled" \
+		"! systemctl is-active --quiet dnsmasq"
 check "nftables active" \
 		"systemctl is-active --quiet nftables"
 check "br_netfilter loaded" \
 		"lsmod | grep -q br_netfilter"
 check "bridge nftables ruleset present" \
-		"nft list ruleset | grep -q 'table bridge filter'"
+		"sudo nft list ruleset | grep -q 'table bridge filter'"
 
 echo ""
 if [ "$fail" -eq 0 ]; then

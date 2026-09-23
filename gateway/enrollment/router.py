@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 from enrollment.attestation import sign_manifest, verify_attestation
 from policy.manifests import ceiling_for_class
 from registry.store import DeviceRegistry
+from enforcement.backend import NullBackend
 
 from .nonce_store import NonceStore
 
@@ -16,6 +17,7 @@ registry: DeviceRegistry = None
 
 router      = APIRouter(prefix="/enroll")
 nonce_store = NonceStore()
+backend     = NullBackend()
 
 # SHA-256 of the released firmware per device class
 # TODO: Add the actual hashes
@@ -58,6 +60,7 @@ class AttestationPayload(BaseModel):
     firmware_hash: str
     device_class: str
     secure_boot: bool
+    mac_address: str
 
 # --- Endpoints ---
 
@@ -190,7 +193,10 @@ async def submit_attestation(envelope: AttestationEnvelope):
         device_class=payload.device_class,
         capabilities=int(capabilities),
         manifest_version=manifest_version,
-        firmware_hash=payload.firmware_hash)
+        firmware_hash=payload.firmware_hash,
+        mac_address=payload.mac_address)
+
+    backend.apply_capabilities(payload.mac_address, int(capabilities))
 
     return ManifestResponse(
         manifest=manifest_data.decode(),

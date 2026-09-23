@@ -18,12 +18,15 @@ ovs-ofctl add-flow "${BRIDGE_IFACE}" \
 
 # DHCP must work
 ovs-ofctl add-flow "${BRIDGE_IFACE}" \
-		"priority=40,udp,tp_src=68,tp_dst=67,actions=normal"
+		"priority=40,ip,udp,tp_src=68,tp_dst=67,actions=normal"
 ovs-ofctl add-flow "${BRIDGE_IFACE}" \
-		"priority=40,udp,tp_src=67,tp_dst=68,actions=normal"
+		"priority=40,ip,udp,tp_src=67,tp_dst=68,actions=normal"
 
 ovs-ofctl add-flow "${BRIDGE_IFACE}" \
 		"priority=100,ip,nw_dst=${BRIDGE_IP},tcp,tp_dst=${GATEWAY_PORT_ENROLL},actions=normal"
+
+ovs-ofctl add-flow "${BRIDGE_IFACE}" \
+		"priority=100,ip,nw_src=${BRIDGE_IP},tcp,tp_src=${GATEWAY_PORT_ENROLL},actions=normal"
 
 echo "[30-baseline-flows] Done."
 ovs-ofctl dump-flows "${BRIDGE_IFACE}"

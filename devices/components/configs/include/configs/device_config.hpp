@@ -18,7 +18,8 @@ enum class ConfigError {
     TypeMismatch,
     NVSFailure,
     NotEnrolled,
-		NotInitialized
+		NotInitialized,
+		HardwareFailure
 };
 
 constexpr esp_err_t to_esp_err(ConfigError e) noexcept 
@@ -29,6 +30,7 @@ constexpr esp_err_t to_esp_err(ConfigError e) noexcept
         case ConfigError::NVSFailure:   return ESP_FAIL;
         case ConfigError::NotEnrolled:  return ESP_ERR_INVALID_STATE;
         case ConfigError::NotInitialized:  return ESP_ERR_INVALID_STATE;
+				case ConfigError::HardwareFailure: return ESP_ERR_INVALID_STATE;
     }
     return ESP_FAIL; // unreachable
 }
@@ -74,6 +76,7 @@ public:
     string_result gateway_host() const;
     string_result device_id() const;
     string_result public_key_id() const;
+    string_result mac_addr() const;
     std::string device_class() const; // Kconfig
 
     // Enrollment state

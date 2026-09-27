@@ -1,6 +1,9 @@
 #include "configs/device_config.hpp"
 #include "esp_log.h"
+#include "esp_mac.h"
 #include <cJSON.h>
+#include <cstdio>
+#include <format>
 
 namespace dev {
 
@@ -211,8 +214,30 @@ DeviceConfig::string_result DeviceConfig::gateway_host() const
 		if (auto ok = ensure_initialized(); !ok)
 			return std::unexpected(ok.error());
 
-		//return get_string(device_handle_, key::gateway_host);
-		return "192.168.86.158";
+		return get_string(device_handle_, key::gateway_host);
+}
+
+DeviceConfig::string_result DeviceConfig::mac_addr() const
+{
+		std::array<uint8_t, 6> mac{};
+		esp_err_t err = esp_read_mac(mac.data(), ESP_MAC_WIFI_STA);
+		if (err != ESP_OK) {
+				ESP_LOGE(TAG, "Failed to get mac adddress: %s",
+						esp_err_to_name(err));
+				return std::unexpected(ConfigError::HardwareFailure);
+		}
+
+		std::array<char, 18> buf{};
+		int written = snprintf(buf.data(), buf.size(),
+				"%02X:%02X:%02X:%02X:%02X:%02X",
+				mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+		if (written < 0 || static_cast<size_t>(written) >= buf.size()) {
+				ESP_LOGE(TAG, "MAC string formatting error");
+				return std::unexpected(ConfigError::HardwareFailure);
+		}
+
+		return std::string{buf.data()};
 }
 
 // ---

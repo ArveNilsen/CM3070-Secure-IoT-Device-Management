@@ -7,6 +7,18 @@ source "$DIR/config/network.env"
 ovs-vsctl --may-exist add-br "${BRIDGE_IFACE}"
 ovs-vsctl --may-exist add-port "${BRIDGE_IFACE}" "${UPLINK_IFACE}"
 
+echo "[10-bridge] Bringing up ${UPLINK_IFACE}..."
+ip link set "${UPLINK_IFACE}" up
+
+# wait for carrier
+for i in $(seq 1 10); do
+		if ip link show "${UPLINK_IFACE}" | grep -q LOWER_UP; then
+				echo "[10-bridge] ${UPLINK_IFACE} has carrier."
+				break
+		fi
+		sleep 1
+done
+
 if systemctl is-active --quiet NetworkManager; then
 		echo "[10-bridge] Excluding OVS interface from MetworkManager..."
 		cat > /etc/NetworkManager/conf.d/10-unmanaged-ovs.conf <<EOF

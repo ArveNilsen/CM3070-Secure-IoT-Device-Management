@@ -42,9 +42,9 @@ check "NetworkManager does not manage bridge interfaces" \
 echo ""
 echo "-- Flow table --"
 check "default-deny rule present" \
-		"ovs-ofctl dump-flows ${BRIDGE_IFACE} | grep -q 'priority=0,actions=drop'"
-check "exactly 5 baseline flow rules present" \
-		"[ \$(ovs-ofctl dump-flows ${BRIDGE_IFACE} | grep -c 'priority=') -eq 5 ]"
+		"ovs-ofctl dump-flows ${BRIDGE_IFACE} | grep -q 'priority=0 actions=drop'"
+check "exactly 6 baseline flow rules present" \
+		"[ \$(ovs-ofctl dump-flows ${BRIDGE_IFACE} | grep -c 'priority=') -eq 6 ]"
 check "ARP rule present" \
 		"ovs-ofctl dump-flows ${BRIDGE_IFACE} | grep -q 'priority=50,arp'"
 check "DHCP rules present (bidirectional)" \

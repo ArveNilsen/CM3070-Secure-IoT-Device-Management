@@ -15,8 +15,8 @@ sed \
 cat > /etc/systemd/system/hostapd-edge.service <<EOF
 [Unit]
 Description=hostapd (edge AP)
-After=systemd-networkd.service
-Requires=systemd-networkd.service
+After=systemd-networkd.service  edge-ap-wifi-up.service
+Requires=systemd-networkd.service  edge-ap-wifi-up.service
 Wants=network-online.target
 
 [Service]

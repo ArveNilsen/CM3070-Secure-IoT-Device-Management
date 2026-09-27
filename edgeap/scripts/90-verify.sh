@@ -31,6 +31,8 @@ check "br_netfilter loaded" \
 		"lsmod | grep -q br_netfilter"
 check "bridge nftables ruleset present" \
 		"sudo nft list ruleset | grep -q 'table bridge filter'"
+check "${WIFI_IFACE} has carrier" \
+		"ip link show ${WIFI_IFACE} | grep -q LOWER_UP"
 
 echo ""
 if [ "$fail" -eq 0 ]; then

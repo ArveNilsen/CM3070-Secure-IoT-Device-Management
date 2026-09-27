@@ -27,6 +27,6 @@ direct_dependencies:
 - espressif/cjson
 - espressif/esp-cryptoauthlib
 - idf
-manifest_hash: 14ab1ce72bd9da89b219173d49d8f230295066da149780f84ba58d95af4907d5
+manifest_hash: 236f8bcc9343be6382c2160d3317bc5c4edbf020fdce45347fc3b524f7aa84b1
 target: esp32
 version: 2.0.0

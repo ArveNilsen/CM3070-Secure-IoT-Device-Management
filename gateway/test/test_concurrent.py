@@ -1,6 +1,14 @@
 import pytest
+import threading
+import sqlite3
 
-from policy.manifests import Capability, ceiling_for_class
+import sys
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+
+from policy.manifests import ceiling_for_class
 from registry.store import DeviceRegistry
 
 
@@ -11,25 +19,33 @@ def registry(tmp_path):
 
 def test_concurrent_enrollment_attempts_single_winner(registry):
     """
-    Not modelled, but a real concern.
+    Evidences UniqueHardwareIdentityPerDevice under concurrent access.
     """
-    import threading
     results = []
+    lock = threading.Lock()
 
     def attempt_enroll():
         ceiling = int(ceiling_for_class("sensor"))
         try:
-            registry.enroll("dev-race", "sensor",
-                            ceiling, 1, "x")
-            results.append("success")
-        except ValueError:
-            results.append("rejected")
+            registry.enroll(
+                public_key_id="dev-race", 
+                device_class="sensor",
+                capabilities=ceiling,
+                manifesti_version=1, 
+                firmware_hash="a" * 64)
+            outcome = "success"
+        except (ValueError, sqlite3.IntegrityError):
+            outcome = "rejected"
+        with lock:
+            results.append(outcome)
 
-    thread = [threading.Thread(target=attempt_enroll)
+    threads = [threading.Thread(target=attempt_enroll)
               for _ in range(10)]
-    for t in threads: t.start()
-    for t in threads: t.join()
+    for t in threads: 
+        t.start()
+    for t in threads: 
+        t.join()
 
-    assert result.count("success" == 1
-    assert result.count("rejected" == 9
+    assert results.count("success") == 1
+    assert results.count("rejected") == 9
 

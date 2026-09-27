@@ -2,6 +2,7 @@ import json
 
 #import hmac
 import time
+import subprocess
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ValidationError
@@ -23,7 +24,7 @@ backend     = NullBackend()
 # TODO: Add the actual hashes
 # TODO: Move to appropriate location
 EXPECTED_FIRMWARE_HASHES: dict[str, str] = {
-    "sensor":   "eb2f73efb6ed940139c827e65277fd159a3ba160e260a2354fd0b58c4ec5d7e5",
+    "sensor": "d89ee89c7608f846fe95c0cae857156dd5aa55c8939129cb95453731d90dd72b",
     "actuator": "ddeeff...",
 }
 
@@ -196,7 +197,11 @@ async def submit_attestation(envelope: AttestationEnvelope):
         firmware_hash=payload.firmware_hash,
         mac_address=payload.mac_address)
 
-    backend.apply_capabilities(payload.mac_address, int(capabilities))
+    try:
+        backend.apply_capabilities(payload.mac_address, int(capabilities))
+    except subprocess.CalledProcessError as exc:
+        print("[WARN] Failed to apply OVS capabilities for "
+              f"'{payload.public_key_id}': {exc}. Run reconcile().")
 
     return ManifestResponse(
         manifest=manifest_data.decode(),

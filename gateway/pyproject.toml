@@ -7,6 +7,8 @@ requires-python = ">=3.8"
 dependencies = [
     "cryptography>=47.0.0",
     "fastapi[standard]>=0.124.4",
+    "mqtt>=0.0.1",
+    "paho-mqtt>=2.1.0",
 ]
 
 [dependency-groups]

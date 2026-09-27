@@ -5,6 +5,7 @@
 // ESP-IDF includes
 #include "esp_log.h"
 #include "esp_err.h"
+#include "esp_timer.h"
 #include "nvs_flash.h"
 
 // Project includes
@@ -161,6 +162,11 @@ extern "C" void app_main()
 
     // Initialise capability enforcement from stored manifest
     CapabilityEnforcer  enforcer{config};
+		if (auto init_ok = enforcer.init(); !init_ok) {
+				ESP_LOGE(TAG, "CapabilityEnforcer init failed");
+				return;
+		}
+
     CommandHandler      commands{enforcer, config};
 
     // Subscribe to gateway command topic
@@ -174,9 +180,19 @@ extern "C" void app_main()
     while (true) {
         if (auto ok = enforcer.check(Capability::PublishTelemetry); ok) {
             // Read and publish
-        }
+					std::string payload = R"({"uptime_ms":)"
+						+ std::to_string(esp_timer_get_time() / 1000) + "}";
+					transport.publish(
+							"device/" + config.public_key_id().value() + "/telemetry",
+							std::span<const uint8_t>(
+								reinterpret_cast<const uint8_t*>(payload.data()),
+								payload.size()));
+        } else {
+						ESP_LOGW(TAG, "PublishTelemetry denied locally - skipping");
+				}
 
         vTaskDelay(pdMS_TO_TICKS(CONFIG_HEARTBEAT_INTERVAL_MS));
     }
 }
+
 } // namespace dev

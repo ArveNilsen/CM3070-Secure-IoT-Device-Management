@@ -170,6 +170,12 @@ EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
 				return std::unexpected(EnrollmentError::AttestationFailed);
 		}
 
+		auto mac_addr = config_.mac_addr();
+		if (!mac_addr) {
+				ESP_LOGE(TAG, "Failed to get MAC address from config");
+				return std::unexpected(EnrollmentError::AttestationFailed);
+		}
+
     int64_t timestamp = esp_timer_get_time() / 1000;
 
     // Build the payload that will be signed.
@@ -182,6 +188,7 @@ EnrollmentService::build_attestation(std::span<const uint8_t> nonce)
     payload.add_string("firmware_hash", hex_encode(*fw_hash));
     payload.add_string("device_class", config_.device_class());
     payload.add_bool("secure_boot", identity_.secure_boot_enabled());
+		payload.add_string("mac_address", *mac_addr);
 
     // Serialise payload for signing
 		std::string payload_canonical = payload.dump_unformatted();

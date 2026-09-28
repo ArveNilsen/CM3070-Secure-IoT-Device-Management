@@ -19,7 +19,8 @@ in the report section Design.
 
 ## Running provisioning
 
-Prerequisites: [...] <!-- TODO: Add prereqs -->
+Prerequisites:
+Generate gateway signing key.
 
 Step 1 - flash the provisioning firmware:
     `idf.py -p /dev/ttyUSB0 flash`
@@ -45,7 +46,7 @@ cat provisioning/devices/esp32-001.json
 ```
 
 You should see a JSON file containing the device's public key, firmware hash,
-and metadata. This is the complete out-of-band artefactt this step produces.
+and metadata. This is the complete out-of-band artefact this step produces.
 
 Step 4 - register with gateway:
 ```

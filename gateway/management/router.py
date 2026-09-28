@@ -20,7 +20,9 @@ async def quarantine_device(public_key_id: str):
 
 @router.get("/devices")
 async def list_devices():
+    print("Listing devices...")
     devices = registry.all_devices()
+    print(f"Number of device: {len(devices)}")
     return [{
         "public_key_id": d.public_key_id,
         "device_class": d.device_class,

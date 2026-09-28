@@ -139,14 +139,13 @@ async def submit_attestation(envelope: AttestationEnvelope):
         print(f"[ATTEST] Pydantic validation failed: {exc}")
         raise HTTPException(status_code=400,
             detail="Malformed attestation payload (schema)") from exc
-    """
     try:
         fields = json.loads(envelope.payload)
         payload = AttestationPayload(**fields)
     except (json.JSONDecodeError, ValidationError) as exc:
         raise HTTPException(
             status_code=400, detail="Malformed attestation payload"
-        ) from exc"""
+        ) from exc
 
     if not verify_attestation(payload.public_key_id, payload_bytes, signature):
         raise HTTPException(
@@ -163,10 +162,10 @@ async def submit_attestation(envelope: AttestationEnvelope):
         raise HTTPException(status_code=401, detail="Invalid or expired nonce")
 
     # 2. Verify timestamp freshness
-    # TODO: Consider NTP or some TTL mechanism
+    # Needs NTP 
     """
     age = abs(time.time() - payload.timestamp / 1000)
-    if age > 90: # TODO: Remove hardcoded value
+    if age > 90:
         raise HTTPException(status_code=401, detail="Timestamp too stale")
     """
 
@@ -187,7 +186,6 @@ async def submit_attestation(envelope: AttestationEnvelope):
             status_code=401, detail="Firmware hash mismatch")
 
     # 5. Verify secure boot
-    # TODO: Tighten for production mode
     # Currently set to warning for testing puposes
     if not payload.secure_boot:
         print(f"WARNING: {payload.public_key_id} "

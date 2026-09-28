@@ -74,7 +74,6 @@ CapabilityEnforcer::apply_restriction(uint32_t permitted_mask)
     if (bounded != permitted_mask) {
         // Gateway sent a mask exceeding ceiling.
         // Apply the intersection silently and log warning.
-        // TODO: Consider letting the gateway know.
         ESP_LOGW(TAG, "Restrition mask 0x%08" PRIx32 " exceeds ceiling 0x%08" PRIx32 
 											", intersection 0x%08" PRIx32 " applied", 
 											permitted_mask, ceiling_mask_, bounded);

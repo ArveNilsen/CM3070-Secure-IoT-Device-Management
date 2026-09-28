@@ -22,7 +22,7 @@ class DeviceRecord:
     manifest_version:   int
     firmware_hash:      str
     enrolled_at:        float
-    state:              str # enrolled | restricted | quarantied | revoked
+    state:              str # enrolled | restricted | quarantined | revoked
     mac_address:        str | None = None
 
     def is_active(self) -> bool:

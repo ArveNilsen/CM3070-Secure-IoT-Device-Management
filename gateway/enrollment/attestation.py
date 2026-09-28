@@ -34,7 +34,6 @@ def _get_gateway_key():
 
 def raw_to_der(raw_sig: bytes) -> bytes:
     """
-    TODO: Add to report, implementation section.
     Embedded use R||S, server uses DER
 
     Must be applied before calling pub_key.verify()

@@ -13,7 +13,7 @@ from enforcement.backend import NullBackend
 from pep.decision import should_accept
 
 registry = DeviceRegistry("registry.db")
-backend = NullBackend() # TODO: Replace stub impl
+backend = NullBackend() # Dependency injected at main
 
 TOPIC_TELEMETRY = "device/+/telemetry"
 

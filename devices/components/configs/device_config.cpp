@@ -62,7 +62,6 @@ std::expected<void, ConfigError> DeviceConfig::init()
 				return std::unexpected(ConfigError::NVSFailure);
 		}
 
-		// TODO: Currently unused, remove if no use.
 		err = nvs_open_from_partition(
 				"nvs_rt", NS_ATTESTATION, NVS_READWRITE, &attestation_handle_);
 		if (err != ESP_OK) {
@@ -326,7 +325,6 @@ DeviceConfig::store_manifest(std::span<const uint8_t> manifest,
 				return ok;
 
 		// Both writes must succeed. Rollback if not.
-		// TODO: Add limitation to report:
 		// No multi-step transaction-commit support in nvs.
 		if (auto ok = set_blob(manifest_handle_, key::manifest, manifest); !ok)
 				return ok;

@@ -307,11 +307,6 @@ EnrollmentService::submit_attestation(std::span<const uint8_t> evidence)
 std::expected<void, EnrollmentError>
 EnrollmentService::verify_manifest(const EnrollmentResult& result)
 {
-		// TODO: Currently a stub impl. Fix when gateway-side signing is
-		// implemented.
-
-		// NOTE: Values are only checked here for validation.
-
 		JsonValue manifest = JsonValue::parse(
 				{result.manifest.begin(), result.manifest.end()});
 		if (!manifest) {

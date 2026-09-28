@@ -1,16 +1,18 @@
 import json
+import re
+import subprocess
 
 #import hmac
 import time
-import subprocess
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ValidationError
 
+from enforcement.backend import NullBackend
 from enrollment.attestation import sign_manifest, verify_attestation
 from policy.manifests import ceiling_for_class
 from registry.store import DeviceRegistry
-from enforcement.backend import NullBackend
 
 from .nonce_store import NonceStore
 
@@ -20,13 +22,32 @@ router      = APIRouter(prefix="/enroll")
 nonce_store = NonceStore()
 backend     = NullBackend()
 
+_FIRMWARE_HASHES_PATH = Path(__file__).resolve().parent.parent / "firmware_hashes.json"
+_SHA256_HEX = re.compile(r"^[0-9a-f]{64}$")
+
+def _load_expected_firmware_hashes(path: Path) -> dict[str: str]:
+    try:
+        raw = json.loads(path.read_text())
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Firmware hash file not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"Firmware hash file is not valid JSON: {exc}") from exc
+
+    if not isinstance(raw, dict) or not raw:
+        raise RuntimeError(f"{path} must be a non-empty JSON object")
+
+    hashes = {}
+    for device_class, digest in raw.items():
+        if not isinstance(digest, str) or not _SHA256_HEX.match(digest.lower()):
+            raise RuntimeError(
+                f"Malformed SHA-256 for device class '{device_class}': {digest!r}")
+        hashes[device_class] = digest.lower()
+    return hashes
+
 # SHA-256 of the released firmware per device class
-# TODO: Add the actual hashes
-# TODO: Move to appropriate location
-EXPECTED_FIRMWARE_HASHES: dict[str, str] = {
-    "sensor": "d89ee89c7608f846fe95c0cae857156dd5aa55c8939129cb95453731d90dd72b",
-    "actuator": "ddeeff...",
-}
+EXPECTED_FIRMWARE_HASHES: dict[str, str] = _load_expected_firmware_hashes(
+    _FIRMWARE_HASHES_PATH)
+
 
 # --- Request / Response models ---
 
@@ -158,7 +179,10 @@ async def submit_attestation(envelope: AttestationEnvelope):
 
     #4. Verify firmware hash
     expected = EXPECTED_FIRMWARE_HASHES.get(payload.device_class)
-    if expected and payload.firmware_hash.lower() != expected.lower():
+    if expected is None:
+        print("[ENROLLMENT] Rejected: no approved firmware hash "
+              f"for device class '{payload.device_class}'")
+    if payload.firmware_hash.lower() != expected:
         raise HTTPException(
             status_code=401, detail="Firmware hash mismatch")
 

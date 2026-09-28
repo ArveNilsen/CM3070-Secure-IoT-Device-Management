@@ -69,11 +69,3 @@ This confirms the device can sign a test challenge and that the gateway's
 registered public key correctly verifies it. End-to-end proof the identity
 is usable before deployment.
 
-## Scope note (PoC limitation)
-
-Slot locking (making the identity permanent and non-reprovisionable) is
-implemented but not invoked by default. See `slots_locked: false`in each
-manifest. This is a deliberate scoping decision (see report section Evaluation,
-for discussion). The `lock_device.py`script implements this step for
-completeness but is not run against the devices used in this thesis's
-demonstration.
